@@ -1,6 +1,6 @@
 # skill-port
 
-[![skills.sh](https://skills.sh/b/yand/skill-port)](https://skills.sh/yand/skill-port)
+[![Install with skills.sh](https://img.shields.io/badge/install%20with-skills.sh-111827)](https://www.skills.sh/docs/cli)
 
 `skill-port` is an agent skill for auditing and porting AI agent skills/plugins between agent ecosystems. It is optimized for Claude Code, Claude Cowork, and Claude plugin sources targeting Codex, while keeping the workflow adapter-based for other targets.
 
@@ -96,6 +96,12 @@ npx skills add . --list
 ```
 
 The `skills.sh` directory ranks installable skills from CLI telemetry and recommends a README explaining usage. Its audits can still flag risks, so users should review reports before installing any third-party skill.
+
+Once the public `skills.sh` detail page exists, this README can switch to the official install-count badge:
+
+```md
+[![skills.sh](https://skills.sh/b/yand/skill-port)](https://skills.sh/yand/skill-port)
+```
 
 ## Sources
 
