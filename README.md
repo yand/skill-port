@@ -57,8 +57,12 @@ python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent
 
 - It does not install source skills/plugins during audit.
 - It does not run source scripts, package managers, lifecycle hooks, or plugin commands.
+- It does not make network requests from the bundled auditor.
 - It does not write into global or project agent install directories unless explicitly requested.
+- The deterministic auditor writes only when `--output <path>` is explicitly provided.
 - It flags secret-like values, destructive commands, shell execution, network calls, lifecycle hooks, credential access, MCP configs, hidden files, binaries, and large files.
+
+See [SECURITY.md](SECURITY.md) for the full safety boundary and reporting guidance.
 
 ## Repository Layout
 

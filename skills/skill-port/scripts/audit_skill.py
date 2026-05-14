@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Read-only deterministic auditor for agent skills and plugin folders."""
+"""Read-only deterministic auditor for agent skills and plugin folders.
+
+Security boundary:
+- does not install skills/plugins
+- does not execute source files, package managers, hooks, or shell commands
+- does not make network requests
+- writes only when --output is explicitly provided
+"""
 
 from __future__ import annotations
 
