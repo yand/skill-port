@@ -1,5 +1,7 @@
 # skill-port
 
+[![skills.sh](https://skills.sh/b/yand/skill-port)](https://skills.sh/yand/skill-port)
+
 `skill-port` is an agent skill for auditing and porting AI agent skills/plugins between agent ecosystems. It is optimized for Claude Code, Claude Cowork, and Claude plugin sources targeting Codex, while keeping the workflow adapter-based for other targets.
 
 The installable skill lives at [`skills/skill-port`](skills/skill-port/SKILL.md).
@@ -79,6 +81,12 @@ This uses a standard `skills/<name>/` layout so skill indexes and installers can
 ## Index Readiness
 
 The skill follows the Agent Skills shape: a directory containing `SKILL.md` with `name` and `description` frontmatter plus optional `scripts/` and `references/`.
+
+To help `skills.sh` discover and rank the skill, install it from GitHub with telemetry-enabled CLI defaults:
+
+```bash
+npx skills add yand/skill-port --skill skill-port
+```
 
 Before publishing, run:
 
