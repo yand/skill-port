@@ -103,6 +103,10 @@ Once the public `skills.sh` detail page exists, this README can switch to the of
 [![skills.sh](https://skills.sh/b/yand/skill-port)](https://skills.sh/yand/skill-port)
 ```
 
+## License
+
+Licensed under the [Apache License 2.0](LICENSE). Attribution notices are provided in [NOTICE](NOTICE).
+
 ## Sources
 
 - Agent Skills specification: https://agentskills.io/specification

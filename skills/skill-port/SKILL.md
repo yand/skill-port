@@ -1,6 +1,10 @@
 ---
 name: skill-port
 description: Audit and port AI agent skills, Claude Code skills, Claude Cowork plugins, slash commands, agents, MCP-backed plugins, and similar skill repositories to Codex or another target agent. Use when asked to assess portability, generate a compatibility/security report, stage a port under target-agent naming, or adapt agent-specific skills/plugins for another runtime.
+license: Apache-2.0
+metadata:
+  author: Yaniv Daniel
+  homepage: https://github.com/yand/skill-port
 ---
 
 # Skill Port
