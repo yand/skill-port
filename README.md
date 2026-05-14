@@ -38,7 +38,7 @@ Ask your agent to use `skill-port` in one of three modes:
 Example prompts:
 
 ```text
-Use skill-port to audit this Claude Code plugin for Codex compatibility: ./vendor/financial-services
+Use skill-port to audit this Claude Code plugin for Codex compatibility: ./vendor/example-plugin
 ```
 
 ```text

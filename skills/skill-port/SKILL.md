@@ -1,6 +1,6 @@
 ---
 name: skill-port
-description: Audit and port AI agent skills, Claude Code skills, Claude Cowork plugins, slash commands, agents, MCP-backed plugins, and similar skill repositories to Codex or another target agent. Use when asked to assess portability, generate a compatibility/security report, stage a port under target-agent naming, or adapt Claude-oriented skills/plugins such as anthropics/financial-services for Codex.
+description: Audit and port AI agent skills, Claude Code skills, Claude Cowork plugins, slash commands, agents, MCP-backed plugins, and similar skill repositories to Codex or another target agent. Use when asked to assess portability, generate a compatibility/security report, stage a port under target-agent naming, or adapt agent-specific skills/plugins for another runtime.
 ---
 
 # Skill Port
@@ -13,7 +13,7 @@ Use this skill to audit or port agent skills and plugin ecosystems. It is optimi
 - **port**: inspect the source, stage target-agent files, and produce the same report.
 - **case-study**: analyze a large ecosystem and recommend what to port, split, ignore, or keep as dependency notes.
 
-Default to `audit-only` when the user's request is unclear or security-sensitive.
+Default to `audit-only` when the user's request is unclear or security-sensitive. In audit-only mode, be decisive: recommend a concrete port scope, target layout, command mapping plan, and next port command without creating files.
 
 ## Safety Rules
 
@@ -30,6 +30,7 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
 
 1. **Identify source and target**
    - Determine source path or URL, source agent/ecosystem, target agent, and requested mode.
+   - If the target agent is not specified, infer it from the active runtime. When running in Codex, use `codex`.
    - For remote URLs, clone/fetch only after user approval or explicit execution request; otherwise document the needed command.
    - For expensive scans, ask the user to run focused commands and share output.
 
@@ -39,6 +40,7 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
    - Read source-specific references only as needed:
      - Claude sources: `references/source-claude.md`
      - Codex targets: `references/target-codex.md`
+     - Large ecosystems: `references/ecosystem-porting.md`
      - Location policy: `references/locations.md`
      - Security review: `references/security.md`
 
@@ -52,12 +54,12 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
    - Create target-agent skill folders in the staging location.
    - Rewrite frontmatter for the target agent.
    - Convert slash-command intent into trigger text or workflow sections.
+   - Create dependency and unsupported-feature notes for MCPs, provider credentials, app connectors, lifecycle hooks, and orchestration behavior.
    - Keep unsupported features in dependency notes or a compatibility report; do not pretend they work.
 
 5. **Report**
    - Follow `references/report-schema.md`.
-   - Include target compatibility, porting map, security findings, output paths, install commands, and manual steps.
-   - For `anthropics/financial-services`, also read `references/financial-services-case.md`.
+   - Include target compatibility, recommended scope, proposed target layout, auto-port candidates, dependency-bound items, unsupported items, security findings, output paths, install commands, and remaining manual steps.
 
 ## Useful Commands
 
@@ -74,5 +76,7 @@ For every audit or port, state:
 - Source inspected and target agent.
 - Whether files were created and where.
 - Compatibility summary.
+- Recommended scope and proposed target layout.
+- Automatic work that can be done in port mode.
 - Security findings that affect installation or trust.
-- Manual setup still required, especially credentials, MCP servers, app connectors, or target-agent installation.
+- Manual setup still required, limited to credentials, MCP servers, app connectors, provisioning, regulated human review, or target-agent installation.

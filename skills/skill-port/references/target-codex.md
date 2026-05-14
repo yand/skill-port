@@ -40,6 +40,17 @@ Keep `SKILL.md` concise. Move long examples, source mappings, provider docs, and
 - Treat MCP configs as required setup. Do not claim the MCP is available unless Codex has the matching tool configured.
 - Keep references/assets when they are target-neutral and useful.
 
+## Audit Recommendations
+
+In audit-only mode, recommend the concrete Codex staging layout and automatic port work without creating files:
+
+- Skills: `ports/<source-name>/codex/skills/<skill-name>/SKILL.md` for plugin ecosystems.
+- Commands: `ports/<source-name>/codex/references/commands.md`.
+- Dependencies: `ports/<source-name>/codex/references/dependencies.md`.
+- Unsupported behavior: `ports/<source-name>/codex/references/unsupported.md`.
+
+Only list credentials, subscriptions, MCP enablement, app provisioning, final install, and regulated human review as remaining manual steps.
+
 ## Validation
 
 Run the Codex skill validator when available:

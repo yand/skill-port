@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -101,11 +102,28 @@ PATTERNS = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Audit an agent skill/plugin folder without executing it.")
     parser.add_argument("source", help="Path to a skill, plugin, or repository folder")
-    parser.add_argument("--target-agent", default="codex", help="Target agent name for compatibility mapping")
+    parser.add_argument("--target-agent", help="Target agent name for compatibility mapping. Defaults to inferred runtime agent.")
     parser.add_argument("--mode", default="audit-only", choices=["audit-only", "port", "case-study"])
     parser.add_argument("--format", default="json", choices=["json", "markdown"], help="Output format")
     parser.add_argument("--output", help="Optional output file. Without this, report is printed to stdout.")
     return parser.parse_args()
+
+
+def infer_target_agent(explicit: str | None) -> tuple[str, bool]:
+    if explicit:
+        return explicit, False
+
+    env_pairs = {key.upper(): value.lower() for key, value in os.environ.items()}
+    joined = " ".join(f"{key}={value}" for key, value in env_pairs.items())
+    if "CODEX" in env_pairs or "codex" in joined:
+        return "codex", True
+    if "CLAUDECODE" in joined or "claude_code" in joined or "claude-code" in joined:
+        return "claude", True
+    if "CURSOR" in env_pairs or "cursor" in joined:
+        return "cursor", True
+    if "GEMINI" in env_pairs or "gemini" in joined:
+        return "gemini", True
+    return "codex", True
 
 
 def relpath(path: Path, root: Path) -> str:
@@ -309,23 +327,61 @@ def build_porting_map(root: Path, inventory: dict[str, list[str]], frontmatter_b
     return mapped
 
 
+def recommended_scope(root: Path, source_type: str, inventory: dict[str, list[str]]) -> dict[str, str]:
+    skill_count = len(inventory["skill_files"])
+    ecosystem = source_type in {"plugin", "mcp-backed-plugin", "repo"} or skill_count > 1
+    if source_type == "skill" and skill_count <= 1:
+        return {
+            "recommended_scope": "single-skill",
+            "recommended_scope_reason": "The source appears to be one skill, so audit and port it as one target-agent skill.",
+        }
+    if ecosystem:
+        return {
+            "recommended_scope": "focused",
+            "recommended_scope_reason": "The source is a multi-artifact ecosystem; recommend a focused first port based on named workflows or the most portable SKILL.md files.",
+        }
+    return {
+        "recommended_scope": "unknown",
+        "recommended_scope_reason": "The source does not expose enough standard skill structure to choose a port scope confidently.",
+    }
+
+
+def proposed_target_layout(root: Path, source_type: str, inventory: dict[str, list[str]], target_agent: str, porting: list[dict[str, str]]) -> str | None:
+    source_name = re.sub(r"[^a-z0-9-]+", "-", root.name.lower()).strip("-") or "source"
+    if source_type == "skill" and len(inventory["skill_files"]) <= 1 and porting:
+        return str(Path(porting[0]["target"]).parent)
+    if porting or source_type != "unknown":
+        return f"ports/{source_name}/{target_agent}/"
+    return None
+
+
+def candidate_items(porting: list[dict[str, str]], inventory: dict[str, list[str]]) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
+    auto_port = [item for item in porting if item["action"] == "port-skill"]
+    auto_adapt = [item for item in porting if item["action"] in {"adapt-command", "document-orchestration"}]
+    dependencies = [item for item in porting if item["action"] == "document-dependency"]
+    unsupported: list[dict[str, str]] = []
+    for path in inventory["manifest_files"]:
+        unsupported.append({"source": path, "reason": "Plugin marketplace or lifecycle behavior must be represented as target-agent notes or a plugin implementation plan."})
+    for path in inventory["agent_files"]:
+        unsupported.append({"source": path, "reason": "Subagent orchestration is not assumed to exist in the target agent."})
+    return auto_port, auto_adapt, dependencies, unsupported
+
+
 def manual_steps(report: dict[str, Any]) -> list[str]:
     steps: list[str] = []
-    if report["inventory"]["mcp_files"]:
-        steps.append("Configure equivalent MCP servers, credentials, and provider subscriptions for the target agent.")
-    if report["inventory"]["command_files"]:
-        steps.append("Review command mappings and rewrite slash-command behavior as target-agent triggers or workflows.")
-    if report["inventory"]["agent_files"]:
-        steps.append("Review agent/subagent orchestration and decide whether to port as skills, custom agents, or documentation.")
+    if report["dependency_bound_items"]:
+        steps.append("Enable equivalent MCP servers/tools and provide credentials or subscriptions outside the skill package.")
+    if report["unsupported_items"]:
+        steps.append("Review unsupported orchestration or lifecycle behavior before relying on those workflows.")
     if report["security"]["risk_level"] != "low":
         steps.append("Review security findings before installing or running any source scripts.")
     if report["porting_map"]:
-        first_target = report["porting_map"][0]["target"]
-        steps.append(f"After staging files, validate the target skill and install with the target agent's normal installer, e.g. npx skills add . --agent {report['target_agent']}.")
+        if report["mode"] != "audit-only":
+            steps.append("Validate staged files and install with the target agent's normal installer.")
     return steps
 
 
-def audit(root: Path, target_agent: str, mode: str) -> dict[str, Any]:
+def audit(root: Path, target_agent: str, target_agent_inferred: bool, mode: str) -> dict[str, Any]:
     root = root.resolve()
     if not root.exists():
         raise SystemExit(f"Source path does not exist: {root}")
@@ -387,6 +443,9 @@ def audit(root: Path, target_agent: str, mode: str) -> dict[str, Any]:
     source_type = classify_source(inventory, has_claude_plugin_dir)
     compatibility = compatibility_status(inventory, security_findings)
     porting = build_porting_map(root, inventory, frontmatter_by_file, target_agent)
+    scope = recommended_scope(root, source_type, inventory)
+    layout = proposed_target_layout(root, source_type, inventory, target_agent, porting)
+    auto_port, auto_adapt, dependencies, unsupported = candidate_items(porting, inventory)
 
     source_name = re.sub(r"[^a-z0-9-]+", "-", root.name.lower()).strip("-") or "source"
     output_path = None
@@ -410,6 +469,12 @@ def audit(root: Path, target_agent: str, mode: str) -> dict[str, Any]:
             "installed": False,
         },
         "compatibility": compatibility,
+        "recommendation": {
+            "target_agent_inferred": target_agent_inferred,
+            **scope,
+            "proposed_target_layout": layout,
+            "next_port_command": f"Use skill-port in port mode for {root} targeting {target_agent}." if porting else None,
+        },
         "inventory": {
             "files_total": len(file_records),
             **{key: sorted(value) for key, value in inventory.items()},
@@ -420,9 +485,13 @@ def audit(root: Path, target_agent: str, mode: str) -> dict[str, Any]:
             "findings": sorted(security_findings, key=lambda item: (item["file"], item["category"])),
         },
         "porting_map": porting,
-        "manual_steps": [],
+        "auto_port_candidates": auto_port,
+        "auto_adaptation_candidates": auto_adapt,
+        "dependency_bound_items": dependencies,
+        "unsupported_items": unsupported,
+        "remaining_manual_steps": [],
     }
-    report["manual_steps"] = manual_steps(report)
+    report["remaining_manual_steps"] = manual_steps(report)
     return report
 
 
@@ -432,7 +501,7 @@ def to_markdown(report: dict[str, Any]) -> str:
         "",
         f"- Source: `{report['source']['path']}`",
         f"- Source type: `{report['source']['type']}`",
-        f"- Target agent: `{report['target_agent']}`",
+        f"- Target agent: `{report['target_agent']}`" + (" (inferred)" if report["recommendation"]["target_agent_inferred"] else ""),
         f"- Mode: `{report['mode']}`",
         f"- Compatibility: `{report['compatibility']['status']}`",
         f"- Security risk: `{report['security']['risk_level']}`",
@@ -444,6 +513,14 @@ def to_markdown(report: dict[str, Any]) -> str:
     if report["compatibility"]["reasons"]:
         lines.extend(["", "## Compatibility Reasons"])
         lines.extend(f"- {reason}" for reason in report["compatibility"]["reasons"])
+
+    lines.extend(["", "## Recommendation"])
+    lines.append(f"- Scope: `{report['recommendation']['recommended_scope']}`")
+    lines.append(f"- Reason: {report['recommendation']['recommended_scope_reason']}")
+    if report["recommendation"]["proposed_target_layout"]:
+        lines.append(f"- Proposed target layout: `{report['recommendation']['proposed_target_layout']}`")
+    if report["recommendation"]["next_port_command"]:
+        lines.append(f"- Next port command: {report['recommendation']['next_port_command']}")
 
     lines.extend(["", "## Inventory"])
     for key in ["skill_files", "command_files", "agent_files", "mcp_files", "manifest_files", "script_files", "asset_files"]:
@@ -459,16 +536,28 @@ def to_markdown(report: dict[str, Any]) -> str:
         for item in report["porting_map"]:
             lines.append(f"- `{item['source']}` -> `{item['target']}` ({item['action']})")
 
-    if report["manual_steps"]:
-        lines.extend(["", "## Manual Steps"])
-        lines.extend(f"- {step}" for step in report["manual_steps"])
+    if report["auto_port_candidates"] or report["auto_adaptation_candidates"] or report["dependency_bound_items"] or report["unsupported_items"]:
+        lines.extend(["", "## Automatic Work Available In Port Mode"])
+        if report["auto_port_candidates"]:
+            lines.append(f"- Port skill files: {len(report['auto_port_candidates'])}")
+        if report["auto_adaptation_candidates"]:
+            lines.append(f"- Adapt commands/orchestration notes: {len(report['auto_adaptation_candidates'])}")
+        if report["dependency_bound_items"]:
+            lines.append(f"- Stage dependency notes: {len(report['dependency_bound_items'])}")
+        if report["unsupported_items"]:
+            lines.append(f"- Stage unsupported-feature notes: {len(report['unsupported_items'])}")
+
+    if report["remaining_manual_steps"]:
+        lines.extend(["", "## Remaining Manual Steps"])
+        lines.extend(f"- {step}" for step in report["remaining_manual_steps"])
 
     return "\n".join(lines) + "\n"
 
 
 def main() -> int:
     args = parse_args()
-    report = audit(Path(args.source), args.target_agent, args.mode)
+    target_agent, inferred = infer_target_agent(args.target_agent)
+    report = audit(Path(args.source), target_agent, inferred, args.mode)
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n" if args.format == "json" else to_markdown(report)
     if args.output:
         Path(args.output).write_text(rendered, encoding="utf-8")
