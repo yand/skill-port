@@ -1,6 +1,6 @@
 ---
 name: skill-port
-description: Audit and port AI agent skills, Claude Code skills, Claude Cowork plugins, slash commands, agents, MCP-backed plugins, and similar skill repositories to Codex or another target agent. Use when asked to assess portability, generate a compatibility/security report, stage a port under target-agent naming, or adapt agent-specific skills/plugins for another runtime.
+description: Audit and port AI agent skills, Claude Code skills/plugins, Codex skills/plugins, Gemini CLI skills/extensions, slash commands, agents, hooks, policies, MCP-backed plugins, and similar skill repositories across target agents. Use when asked to assess portability, generate a compatibility/security report, stage a port under target-agent naming, or adapt agent-specific skills/plugins for another runtime.
 license: Apache-2.0
 metadata:
   author: Yaniv Daniel
@@ -9,7 +9,7 @@ metadata:
 
 # Skill Port
 
-Use this skill to audit or port agent skills and plugin ecosystems. It is optimized for Claude/Cowork/Claude Code sources and Codex targets, but the workflow is adapter-based so future targets can be added without changing the core process.
+Use this skill to audit or port agent skills and plugin ecosystems. It supports Claude Code, Codex, Gemini CLI, and Agent Skills-compatible sources and targets through an adapter-based workflow.
 
 ## Operating Modes
 
@@ -44,7 +44,11 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
    - Read source-specific references only as needed:
      - Portability model: `references/portability-model.md`
      - Claude sources: `references/source-claude.md`
+     - Codex sources: `references/source-codex.md`
+     - Gemini sources: `references/source-gemini.md`
      - Codex targets: `references/target-codex.md`
+     - Claude targets: `references/target-claude.md`
+     - Gemini targets: `references/target-gemini.md`
      - Large ecosystems: `references/ecosystem-porting.md`
      - Location policy: `references/locations.md`
      - Security review: `references/security.md`
@@ -54,7 +58,7 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
    - Portable: agent-neutral `SKILL.md`, references, examples, assets, templates.
    - Needs adaptation: slash commands, agent prompts, Claude wording, target-specific frontmatter.
    - Dependency-bound: MCP configs, external APIs, subscriptions, app connectors, credentials.
-   - Unsupported: lifecycle hooks, automatic plugin installation, Cowork dispatch, Managed Agent orchestration unless a target equivalent is available.
+   - Unsupported: lifecycle hooks, automatic plugin installation, Cowork dispatch, managed-agent orchestration, policy engines, and target-specific extension behavior unless a target equivalent is available.
    - Mark each mapped item as `direct`, `translated`, `partial`, `unsupported`, or `manual`.
 
 4. **Port only when requested**
@@ -73,6 +77,8 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
 ```bash
 python3 scripts/audit_skill.py <source-path> --target-agent codex
 python3 scripts/audit_skill.py <source-path> --target-agent codex --format markdown
+python3 scripts/audit_skill.py <source-path> --target-agent claude --format markdown
+python3 scripts/audit_skill.py <source-path> --target-agent gemini --format markdown
 python3 scripts/audit_skill.py <source-path> --target-agent codex --output report.json
 ```
 

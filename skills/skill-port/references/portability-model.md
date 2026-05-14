@@ -6,13 +6,13 @@ Use this reference before porting between agent ecosystems. Model the source as 
 
 | Layer | Examples | Porting rule |
 | --- | --- | --- |
-| Project instructions | `AGENTS.md`, `CLAUDE.md`, nested override files | Translate or bridge; do not treat as skills. |
+| Project instructions | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, nested override files | Translate or bridge; do not treat as skills. |
 | Skills | `SKILL.md`, `scripts/`, `references/`, `assets/` | Usually the most portable layer. |
-| Commands | Slash commands, command prompts, user-triggered workflows | Translate into target triggers/workflows. |
-| Agents | Claude subagents, Codex custom agents, managed agents | Convert only known configuration fields; otherwise document as partial/unsupported. |
-| Plugins | Plugin manifests, marketplaces, install metadata | Rebuild for target package format; do not rename blindly. |
+| Commands | Slash commands, command prompts, Gemini `commands/*.toml`, user-triggered workflows | Translate into target triggers/workflows. |
+| Agents | Claude subagents, Codex custom agents, Gemini subagents, managed agents | Convert only known configuration fields; otherwise document as partial/unsupported. |
+| Plugins | Plugin manifests, marketplaces, Gemini extensions, install metadata | Rebuild for target package format; do not rename blindly. |
 | MCP/tools | `.mcp.json`, config files, tool manifests | Convert simple configs when target format is known; credentials/setup remain manual. |
-| Hooks | Lifecycle scripts/checks | Treat as advanced and risky; convert only with known event/matcher/IO mapping. |
+| Hooks and policies | Lifecycle scripts/checks, Gemini policies, tool safety rules | Treat as advanced and risky; convert only with known event/matcher/IO mapping. |
 
 ## Conversion Status
 
@@ -33,8 +33,9 @@ source package
   -> commands
   -> agents
   -> plugin metadata
+  -> extension metadata
   -> MCP/tool dependencies
-  -> hooks/lifecycle behavior
+  -> hooks/policies/lifecycle behavior
   -> compatibility report
   -> target package
 ```
@@ -46,6 +47,6 @@ This prevents fake lossless conversion. The report should say what is direct, tr
 - Project instructions are behavior context, not reusable workflow skills.
 - Skills are portable only after checking frontmatter, dynamic context syntax, path assumptions, scripts, and target-specific metadata.
 - Agents/subagents are configuration. Do not collapse them into skills unless only procedural instructions remain.
-- Plugin manifests are target-specific. Build a new target manifest or document a plugin implementation plan.
+- Plugin and extension manifests are target-specific. Build a new target manifest or document an implementation plan.
 - MCP is conceptually shared but config, auth, scope, and trust semantics differ by agent.
-- Hooks are not portable as text; lifecycle events, matchers, JSON input, and output semantics must be mapped explicitly.
+- Hooks and policy engines are not portable as text; lifecycle events, matchers, JSON input, output semantics, and enforcement behavior must be mapped explicitly.

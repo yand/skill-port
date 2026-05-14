@@ -19,12 +19,16 @@ Use target-agent staging by default. Porting and installation are separate opera
 | --- | --- |
 | Single skill to Codex | `skills/codex/<skill-name>/` |
 | Multi-skill/plugin to Codex | `ports/<source-name>/codex/` |
-| Future target agent | `skills/<target-agent>/<skill-name>/` or `ports/<source-name>/<target-agent>/` |
+| Single skill to Claude | `skills/claude/<skill-name>/` |
+| Multi-skill/plugin to Claude | `ports/<source-name>/claude/` |
+| Single skill to Gemini | `skills/gemini/<skill-name>/` |
+| Multi-skill/extension to Gemini | `ports/<source-name>/gemini/` |
+| Other target agent | `skills/<target-agent>/<skill-name>/` or `ports/<source-name>/<target-agent>/` |
 | Audit-only report | No ported files. JSON/Markdown report only. |
 
 ## Install Policy
 
 - Do not install by default.
-- Do not mutate `~/.codex/skills`, `~/.claude`, `.codex/`, `.claude/`, or `.agents/skills/` during porting.
+- Do not mutate `~/.codex/skills`, `~/.claude`, `~/.gemini`, `.codex/`, `.claude/`, `.gemini/`, or `.agents/skills/` during porting.
 - If the user asks to install after reviewing the report, use the target agent's normal installer and ask whether the scope is project or global when that choice matters.
 - Prefer symlink/canonical install behavior where supported by the installer; use copy mode only when requested or required.
