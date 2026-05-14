@@ -6,6 +6,14 @@
 
 The installable skill lives at [`skills/skill-port`](skills/skill-port/SKILL.md).
 
+## Install with skills.sh
+
+```bash
+npx skills add yand/skill-port --skill skill-port
+```
+
+The `skills.sh` CLI is the main discovery path for public skill directories and leaderboards.
+
 ## What It Does
 
 - Audits skills, plugin folders, command bundles, agent bundles, and MCP-backed plugin repos.
@@ -21,7 +29,7 @@ From this repository:
 npx skills add . --skill skill-port
 ```
 
-From GitHub after publishing:
+From GitHub:
 
 ```bash
 npx skills add yand/skill-port --skill skill-port
