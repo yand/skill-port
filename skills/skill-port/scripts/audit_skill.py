@@ -96,6 +96,29 @@ PATTERNS = {
         re.compile(r"\$" + lit("ARG", "UMENTS")),
         re.compile(r"\bclaude\s+plugin\b"),
     ],
+    "dynamic_context": [
+        re.compile(r"(?m)^!\s*`[^`]+`"),
+    ],
+    "invocation_control": [
+        re.compile(r"(?m)^(disable-model-invocation|user-invocable|allowed-tools|disallowedTools|paths|context|agent|hooks)\s*:"),
+    ],
+    "hook_behavior": [
+        re.compile(
+            r"\b("
+            + "|".join(
+                [
+                    lit("Pre", "Tool", "Use"),
+                    lit("Post", "Tool", "Use"),
+                    lit("User", "Prompt", "Submit"),
+                    lit("Session", "Start"),
+                    lit("Session", "End"),
+                    lit("Subagent", "Start"),
+                    lit("Subagent", "Stop"),
+                ]
+            )
+            + r")\b"
+        ),
+    ],
 }
 
 
@@ -189,6 +212,8 @@ def file_kind(path: Path, rel: str) -> str:
     name = path.name
     suffix = path.suffix.lower()
     parts = rel.split("/")
+    if name in {"AGENTS.md", "AGENTS.override.md", "CLAUDE.md", "CLAUDE.local.md"} or rel.endswith("/CLAUDE.md") or rel.endswith("/AGENTS.md"):
+        return "instruction"
     if rel == "agents/openai.yaml":
         return "metadata"
     if name == "SKILL.md":
@@ -197,6 +222,8 @@ def file_kind(path: Path, rel: str) -> str:
         return "mcp"
     if name in {"plugin.json", "manifest.json"} or ".claude-plugin" in parts:
         return "manifest"
+    if name in {"hooks.json"} or "hooks" in parts:
+        return "hook"
     if "commands" in parts and suffix in {".md", ".txt"}:
         return "command"
     if "agents" in parts and suffix in {".md", ".yaml", ".yml", ".json"}:
@@ -236,20 +263,26 @@ def classify_source(inventory: dict[str, list[str]], has_claude_plugin_dir: bool
     has_commands = bool(inventory["command_files"])
     has_agents = bool(inventory["agent_files"])
     has_mcp = bool(inventory["mcp_files"])
+    has_hooks = bool(inventory["hook_files"])
+    has_instructions = bool(inventory["instruction_files"])
     has_manifest = bool(inventory["manifest_files"]) or has_claude_plugin_dir
 
     if has_manifest and has_mcp:
         return "mcp-backed-plugin"
     if has_manifest:
         return "plugin"
-    if has_skills and (has_commands or has_agents or has_mcp):
+    if has_skills and (has_commands or has_agents or has_mcp or has_hooks):
         return "plugin"
+    if has_skills and has_instructions:
+        return "repo"
     if has_skills:
         return "skill"
     if has_commands:
         return "command-bundle"
     if has_agents:
         return "agent-bundle"
+    if has_instructions:
+        return "repo"
     return "unknown"
 
 
@@ -262,16 +295,26 @@ def compatibility_status(inventory: dict[str, list[str]], security_findings: lis
         reasons.append("Slash commands or command files must be rewritten as target-agent workflows.")
     if inventory["agent_files"]:
         reasons.append("Agent/subagent files may describe orchestration that is not directly portable.")
+    if inventory["instruction_files"]:
+        reasons.append("Project instruction files should be translated or bridged separately from skills.")
+    if inventory["hook_files"]:
+        reasons.append("Hooks require explicit lifecycle/event mapping before activation.")
     if "claude_specific" in categories:
         reasons.append("Claude-specific paths, commands, or runtime wording need adaptation.")
+    if "dynamic_context" in categories:
+        reasons.append("Dynamic context injection needs target-specific rewriting or manual review.")
+    if "invocation_control" in categories:
+        reasons.append("Source-specific invocation control fields need target-specific mapping.")
     if {"secret_like", "destructive_command", "credential_access", "install_hook"} & categories:
         reasons.append("Security findings require review before installation or porting.")
 
     if {"secret_like", "destructive_command", "credential_access", "install_hook"} & categories:
         status = "unsupported"
+    elif inventory["hook_files"]:
+        status = "unsupported"
     elif inventory["mcp_files"]:
         status = "dependency-bound"
-    elif inventory["command_files"] or inventory["agent_files"] or "claude_specific" in categories:
+    elif inventory["command_files"] or inventory["agent_files"] or inventory["instruction_files"] or {"claude_specific", "dynamic_context", "invocation_control"} & categories:
         status = "needs-adaptation"
     elif inventory["skill_files"]:
         status = "portable"
@@ -304,7 +347,14 @@ def target_name_from_skill(path: str, frontmatter_by_file: dict[str, dict[str, s
 
 def build_porting_map(root: Path, inventory: dict[str, list[str]], frontmatter_by_file: dict[str, dict[str, str]], target_agent: str) -> list[dict[str, str]]:
     source_name = re.sub(r"[^a-z0-9-]+", "-", root.name.lower()).strip("-") or "source"
-    multi = len(inventory["skill_files"]) > 1 or bool(inventory["manifest_files"] or inventory["command_files"] or inventory["agent_files"])
+    multi = len(inventory["skill_files"]) > 1 or bool(
+        inventory["manifest_files"]
+        or inventory["command_files"]
+        or inventory["agent_files"]
+        or inventory["mcp_files"]
+        or inventory["hook_files"]
+        or inventory["instruction_files"]
+    )
     mapped: list[dict[str, str]] = []
 
     for skill_file in inventory["skill_files"]:
@@ -313,16 +363,23 @@ def build_porting_map(root: Path, inventory: dict[str, list[str]], frontmatter_b
             target = f"ports/{source_name}/{target_agent}/skills/{skill_name}/SKILL.md"
         else:
             target = f"skills/{target_agent}/{skill_name}/SKILL.md"
-        mapped.append({"source": skill_file, "target": target, "action": "port-skill"})
+        mapped.append({"source": skill_file, "target": target, "action": "port-skill", "status": "translated"})
+
+    for instruction_file in inventory["instruction_files"]:
+        target = f"ports/{source_name}/{target_agent}/AGENTS.md" if target_agent == "codex" else f"ports/{source_name}/{target_agent}/project-instructions.md"
+        mapped.append({"source": instruction_file, "target": target, "action": "adapt-project-instructions", "status": "translated"})
 
     for command_file in inventory["command_files"]:
-        mapped.append({"source": command_file, "target": f"ports/{source_name}/{target_agent}/references/commands.md", "action": "adapt-command"})
+        mapped.append({"source": command_file, "target": f"ports/{source_name}/{target_agent}/references/commands.md", "action": "adapt-command", "status": "translated"})
 
     for agent_file in inventory["agent_files"]:
-        mapped.append({"source": agent_file, "target": f"ports/{source_name}/{target_agent}/references/agents.md", "action": "document-orchestration"})
+        mapped.append({"source": agent_file, "target": f"ports/{source_name}/{target_agent}/references/agents.md", "action": "document-orchestration", "status": "partial"})
 
     for mcp_file in inventory["mcp_files"]:
-        mapped.append({"source": mcp_file, "target": f"ports/{source_name}/{target_agent}/references/dependencies.md", "action": "document-dependency"})
+        mapped.append({"source": mcp_file, "target": f"ports/{source_name}/{target_agent}/references/dependencies.md", "action": "document-dependency", "status": "manual"})
+
+    for hook_file in inventory["hook_files"]:
+        mapped.append({"source": hook_file, "target": f"ports/{source_name}/{target_agent}/references/unsupported.md", "action": "document-hook", "status": "unsupported"})
 
     return mapped
 
@@ -357,14 +414,37 @@ def proposed_target_layout(root: Path, source_type: str, inventory: dict[str, li
 
 def candidate_items(porting: list[dict[str, str]], inventory: dict[str, list[str]]) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
     auto_port = [item for item in porting if item["action"] == "port-skill"]
-    auto_adapt = [item for item in porting if item["action"] in {"adapt-command", "document-orchestration"}]
+    auto_adapt = [item for item in porting if item["action"] in {"adapt-project-instructions", "adapt-command", "document-orchestration"}]
     dependencies = [item for item in porting if item["action"] == "document-dependency"]
     unsupported: list[dict[str, str]] = []
     for path in inventory["manifest_files"]:
         unsupported.append({"source": path, "reason": "Plugin marketplace or lifecycle behavior must be represented as target-agent notes or a plugin implementation plan."})
     for path in inventory["agent_files"]:
         unsupported.append({"source": path, "reason": "Subagent orchestration is not assumed to exist in the target agent."})
+    for path in inventory["hook_files"]:
+        unsupported.append({"source": path, "reason": "Hooks require target-specific lifecycle, matcher, input, and output mapping before activation."})
     return auto_port, auto_adapt, dependencies, unsupported
+
+
+def layer_summary(inventory: dict[str, list[str]]) -> dict[str, int]:
+    return {
+        "project_instructions": len(inventory["instruction_files"]),
+        "skills": len(inventory["skill_files"]),
+        "commands": len(inventory["command_files"]),
+        "agents": len(inventory["agent_files"]),
+        "plugins": len(inventory["manifest_files"]),
+        "mcp_tools": len(inventory["mcp_files"]),
+        "hooks": len(inventory["hook_files"]),
+    }
+
+
+def conversion_status(porting: list[dict[str, str]]) -> dict[str, int]:
+    counts = {"direct": 0, "translated": 0, "partial": 0, "unsupported": 0, "manual": 0}
+    for item in porting:
+        status = item.get("status", "partial")
+        if status in counts:
+            counts[status] += 1
+    return counts
 
 
 def manual_steps(report: dict[str, Any]) -> list[str]:
@@ -389,11 +469,13 @@ def audit(root: Path, target_agent: str, target_agent_inferred: bool, mode: str)
         raise SystemExit(f"Source path must be a directory: {root}")
 
     inventory = {
+        "instruction_files": [],
         "skill_files": [],
         "command_files": [],
         "agent_files": [],
         "mcp_files": [],
         "manifest_files": [],
+        "hook_files": [],
         "script_files": [],
         "asset_files": [],
     }
@@ -480,6 +562,8 @@ def audit(root: Path, target_agent: str, target_agent_inferred: bool, mode: str)
             **{key: sorted(value) for key, value in inventory.items()},
             "files": file_records,
         },
+        "layer_summary": layer_summary(inventory),
+        "conversion_status": conversion_status(porting),
         "security": {
             "risk_level": risk_level(security_findings, file_records),
             "findings": sorted(security_findings, key=lambda item: (item["file"], item["category"])),
@@ -523,8 +607,16 @@ def to_markdown(report: dict[str, Any]) -> str:
         lines.append(f"- Next port command: {report['recommendation']['next_port_command']}")
 
     lines.extend(["", "## Inventory"])
-    for key in ["skill_files", "command_files", "agent_files", "mcp_files", "manifest_files", "script_files", "asset_files"]:
+    for key in ["instruction_files", "skill_files", "command_files", "agent_files", "mcp_files", "manifest_files", "hook_files", "script_files", "asset_files"]:
         lines.append(f"- {key}: {len(report['inventory'][key])}")
+
+    lines.extend(["", "## Layer Summary"])
+    for key, value in report["layer_summary"].items():
+        lines.append(f"- {key}: {value}")
+
+    lines.extend(["", "## Conversion Status"])
+    for key, value in report["conversion_status"].items():
+        lines.append(f"- {key}: {value}")
 
     if report["security"]["findings"]:
         lines.extend(["", "## Security Findings"])
@@ -534,7 +626,7 @@ def to_markdown(report: dict[str, Any]) -> str:
     if report["porting_map"]:
         lines.extend(["", "## Porting Map"])
         for item in report["porting_map"]:
-            lines.append(f"- `{item['source']}` -> `{item['target']}` ({item['action']})")
+            lines.append(f"- `{item['source']}` -> `{item['target']}` ({item['action']}, {item.get('status', 'partial')})")
 
     if report["auto_port_candidates"] or report["auto_adaptation_candidates"] or report["dependency_bound_items"] or report["unsupported_items"]:
         lines.extend(["", "## Automatic Work Available In Port Mode"])

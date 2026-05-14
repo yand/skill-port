@@ -7,6 +7,7 @@ Use this reference when the source is a Claude Code skill, Claude Code plugin, C
 | Claude artifact | Target handling |
 | --- | --- |
 | `SKILL.md` | Usually portable after frontmatter, wording, and path cleanup. |
+| `CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md` | Treat as project instructions. Translate or bridge to target project guidance such as `AGENTS.md`; do not package as a skill. |
 | `.claude/skills/<name>/SKILL.md` | Port to `skills/<target-agent>/<name>/SKILL.md` for a single skill. |
 | `plugins/**/skills/<name>/SKILL.md` | Port each portable skill or split into target-agent staged folders. |
 | `.claude/commands/*.md` or `commands/*.md` | Convert command intent into trigger text, workflow sections, or prompt snippets. Do not claim native slash-command support unless the target has it. |
@@ -23,12 +24,26 @@ Use this reference when the source is a Claude Code skill, Claude Code plugin, C
 - Preserve domain expertise, examples, templates, and quality checks.
 - Preserve safety disclaimers and human-review requirements.
 - Convert `$ARGUMENTS` into explicit instruction parsing or a short user question.
+- Convert `!` command-injection lines into explicit workflow steps or scripts only after security review; otherwise mark partial/manual.
 - Remove assumptions about `.claude` paths from reusable instructions.
 - Keep MCP/provider access as dependency notes, not as installed capabilities.
+
+## Claude-Specific Skill Signals
+
+Flag these because they can make a skill lossy when ported:
+
+- Dynamic context injection with shell command syntax.
+- Invocation control such as user-only/model-only activation.
+- Path-scoped activation.
+- Forked context or named subagent execution.
+- Claude tool allowlists/disallowlists.
+- Skill-level hooks.
+- Agent/subagent fields in frontmatter.
 
 ## Classification Defaults
 
 - Plain markdown workflows are usually portable.
 - Scripts are portable only after security review and dependency inventory.
 - Slash commands need adaptation.
+- Project instruction files need translation/bridging, not skill conversion.
 - Hooks, auto-install behavior, Cowork dispatch, and Managed Agent subagent routing are not portable by default.

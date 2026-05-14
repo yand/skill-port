@@ -26,6 +26,10 @@ description: Clear trigger-oriented description
 
 Keep `SKILL.md` concise. Move long examples, source mappings, provider docs, and domain tables into `references/`.
 
+## Project Instructions
+
+Project guidance belongs in `AGENTS.md` or target project-instruction files, not in a skill unless it is a reusable workflow. When a Claude source has `CLAUDE.md`, recommend a target `AGENTS.md` bridge or translated project guidance with notes for Claude-only behavior.
+
 ## Staging Paths
 
 - Single skill: `skills/codex/<skill-name>/`
@@ -34,6 +38,7 @@ Keep `SKILL.md` concise. Move long examples, source mappings, provider docs, and
 
 ## Claude-to-Codex Rules
 
+- Convert `CLAUDE.md` project guidance into `AGENTS.md` guidance or a bridge note; do not treat it as a skill.
 - Convert Claude slash commands into trigger descriptions or workflow sections.
 - Convert Claude subagent/agent prompts only when they are procedural instructions; otherwise report them as orchestration requirements.
 - Convert plugin manifests into dependency notes or a plugin implementation plan.

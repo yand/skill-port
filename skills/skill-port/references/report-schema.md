@@ -32,6 +32,7 @@ Every audit or port should produce deterministic JSON and a human-readable Markd
   },
   "inventory": {
     "files_total": 0,
+    "instruction_files": [],
     "skill_files": [],
     "command_files": [],
     "agent_files": [],
@@ -39,6 +40,22 @@ Every audit or port should produce deterministic JSON and a human-readable Markd
     "manifest_files": [],
     "script_files": [],
     "asset_files": []
+  },
+  "layer_summary": {
+    "project_instructions": 0,
+    "skills": 0,
+    "commands": 0,
+    "agents": 0,
+    "plugins": 0,
+    "mcp_tools": 0,
+    "hooks": 0
+  },
+  "conversion_status": {
+    "direct": 0,
+    "translated": 0,
+    "partial": 0,
+    "unsupported": 0,
+    "manual": 0
   },
   "security": {
     "risk_level": "low|medium|high",

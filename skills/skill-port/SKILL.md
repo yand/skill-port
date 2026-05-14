@@ -38,6 +38,7 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
    - Prefer `scripts/audit_skill.py` for deterministic local inspection.
    - If the source is large, run it on the narrowest useful directory first.
    - Read source-specific references only as needed:
+     - Portability model: `references/portability-model.md`
      - Claude sources: `references/source-claude.md`
      - Codex targets: `references/target-codex.md`
      - Large ecosystems: `references/ecosystem-porting.md`
@@ -45,10 +46,12 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
      - Security review: `references/security.md`
 
 3. **Classify artifacts**
+   - First classify by layer: project instructions, skills, commands, agents, plugins, MCP/tools, hooks, assets/scripts.
    - Portable: agent-neutral `SKILL.md`, references, examples, assets, templates.
    - Needs adaptation: slash commands, agent prompts, Claude wording, target-specific frontmatter.
    - Dependency-bound: MCP configs, external APIs, subscriptions, app connectors, credentials.
    - Unsupported: lifecycle hooks, automatic plugin installation, Cowork dispatch, Managed Agent orchestration unless a target equivalent is available.
+   - Mark each mapped item as `direct`, `translated`, `partial`, `unsupported`, or `manual`.
 
 4. **Port only when requested**
    - Create target-agent skill folders in the staging location.
@@ -76,6 +79,7 @@ For every audit or port, state:
 - Source inspected and target agent.
 - Whether files were created and where.
 - Compatibility summary.
+- Layer summary and conversion status summary.
 - Recommended scope and proposed target layout.
 - Automatic work that can be done in port mode.
 - Security findings that affect installation or trust.

@@ -7,6 +7,7 @@ Use this reference for large skill/plugin repositories that contain multiple ski
 Large ecosystems often include:
 
 - Multiple `SKILL.md` files across domains or workflows.
+- Project instruction files such as `AGENTS.md`, `CLAUDE.md`, or target-specific equivalents.
 - Slash commands or command prompts for common entrypoints.
 - Agent/subagent definitions for role, routing, or orchestration behavior.
 - Plugin manifests, marketplace metadata, setup scripts, or lifecycle hooks.
@@ -22,6 +23,7 @@ When auditing a whole ecosystem and the user has not named a specific workflow, 
 - Include shared references, templates, and examples only when directly used by selected workflows.
 - Put provider/app dependencies into dependency notes.
 - Put lifecycle hooks, marketplace install behavior, and orchestration behavior into unsupported-feature notes.
+- Keep project instruction translation separate from skill staging.
 
 Recommend whole-ecosystem porting only when the user explicitly asks for all skills, all plugins, all domains, all verticals, or full migration.
 
