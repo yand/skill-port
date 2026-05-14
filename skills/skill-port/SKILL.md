@@ -62,9 +62,9 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
 ## Useful Commands
 
 ```bash
-python3 skill-port/scripts/audit_skill.py <source-path> --target-agent codex
-python3 skill-port/scripts/audit_skill.py <source-path> --target-agent codex --format markdown
-python3 skill-port/scripts/audit_skill.py <source-path> --target-agent codex --output report.json
+python3 scripts/audit_skill.py <source-path> --target-agent codex
+python3 scripts/audit_skill.py <source-path> --target-agent codex --format markdown
+python3 scripts/audit_skill.py <source-path> --target-agent codex --output report.json
 ```
 
 ## Output Standard
