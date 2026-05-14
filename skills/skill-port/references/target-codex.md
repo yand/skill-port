@@ -28,7 +28,7 @@ Keep `SKILL.md` concise. Move long examples, source mappings, provider docs, and
 
 ## Project Instructions
 
-Project guidance belongs in `AGENTS.md` or target project-instruction files, not in a skill unless it is a reusable workflow. When a Claude source has `CLAUDE.md`, recommend a target `AGENTS.md` bridge or translated project guidance with notes for Claude-only behavior.
+Project guidance belongs in `AGENTS.md` or target project-instruction files, not in a skill unless it is a reusable workflow. When a Claude source has `CLAUDE.md`, recommend a target `AGENTS.md` bridge or translated project guidance with notes for Claude-only behavior. When a Gemini source has `GEMINI.md`, translate reusable guidance into `AGENTS.md` and preserve Gemini-specific extension, hook, or policy behavior as notes.
 
 ## Staging Paths
 
@@ -44,6 +44,14 @@ Project guidance belongs in `AGENTS.md` or target project-instruction files, not
 - Convert plugin manifests into dependency notes or a plugin implementation plan.
 - Treat MCP configs as required setup. Do not claim the MCP is available unless Codex has the matching tool configured.
 - Keep references/assets when they are target-neutral and useful.
+
+## Gemini-to-Codex Rules
+
+- Convert `GEMINI.md` project guidance into `AGENTS.md`; do not treat it as a skill.
+- Convert `gemini-extension.json` into a Codex plugin implementation plan or `.codex-plugin/plugin.json` only when fields are known.
+- Convert Gemini `commands/*.toml` into workflow sections or Codex command notes.
+- Convert Gemini subagent Markdown into `.codex/agents/*.toml` only for known fields.
+- Treat Gemini policies and hooks as unsupported until Codex hook or policy equivalents are explicitly mapped.
 
 ## Audit Recommendations
 

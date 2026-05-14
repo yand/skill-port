@@ -2,9 +2,20 @@
 
 [![Install with skills.sh](https://img.shields.io/badge/install%20with-skills.sh-111827)](https://www.skills.sh/docs/cli)
 
-`skill-port` is an agent skill for auditing and porting AI agent skills/plugins between agent ecosystems. It is optimized for Claude Code, Claude Cowork, and Claude plugin sources targeting Codex, while keeping the workflow adapter-based for other targets.
+`skill-port` is an Agent Skills portability auditor for developers who want to reuse AI agent skills, plugins, slash commands, subagents, MCP configs, and workflow packs across Claude Code, Codex, Gemini CLI, and other Agent Skills-compatible runtimes.
+
+Use it when a Claude Code plugin does not work in Codex, a Codex skill needs to be adapted for Claude Code, a Gemini CLI extension needs a portability review, or a skill repository needs a deterministic compatibility and security report before installation.
 
 The installable skill lives at [`skills/skill-port`](skills/skill-port/SKILL.md).
+
+## Problems It Solves
+
+- "Can I use this Claude Code skill or plugin in Codex?"
+- "What needs to change before this Codex skill works in Claude Code?"
+- "How portable is this Gemini CLI extension?"
+- "Which parts of this agent plugin are standard Agent Skills, and which parts are vendor-specific?"
+- "Does this skill contain risky scripts, hooks, network calls, secret-like values, or destructive commands?"
+- "Where should ported files be staged without mutating my global agent install?"
 
 ## Install with skills.sh
 
@@ -16,10 +27,25 @@ The `skills.sh` CLI is the main discovery path for public skill directories and 
 
 ## What It Does
 
-- Audits skills, plugin folders, command bundles, agent bundles, and MCP-backed plugin repos.
-- Reports portability, target-agent compatibility, security findings, dependencies, and manual setup.
+- Audits Agent Skills, Claude Code skills/plugins, Codex skills/plugins, Gemini CLI skills/extensions, command bundles, agent bundles, and MCP-backed plugin repos.
+- Reports portability, target-agent compatibility, source/target file mapping, security findings, dependencies, and manual setup.
 - Stages ported output under target-agent naming instead of mutating installed skill directories.
-- Helps adapt Claude-specific artifacts such as slash commands, Cowork plugins, Managed Agent cookbooks, and MCP connector notes for Codex.
+- Helps adapt source-specific artifacts such as slash commands, Codex custom agents, Gemini extensions, Cowork plugins, managed-agent cookbooks, hooks, policies, and MCP connector notes.
+
+## Common Searches
+
+People looking for this skill may describe the problem as:
+
+- Claude Code plugin to Codex
+- Claude skill to Codex skill
+- Codex skill to Claude Code
+- Gemini CLI extension portability
+- Agent Skills converter
+- AI agent skill adapter
+- MCP plugin portability audit
+- slash command migration for AI coding agents
+- subagent portability between Claude Code, Codex, and Gemini CLI
+- skills.sh compatible skill audit
 
 ## Install
 
@@ -48,6 +74,10 @@ Ask your agent to use `skill-port` in one of three modes:
 Example prompts:
 
 ```text
+Use skill-port to audit this agent skill before I install it: ./some-skill
+```
+
+```text
 Use skill-port to audit this Claude Code plugin for Codex compatibility: ./vendor/example-plugin
 ```
 
@@ -55,10 +85,20 @@ Use skill-port to audit this Claude Code plugin for Codex compatibility: ./vendo
 Use skill-port to port ./my-claude-skill to Codex and stage the output under target-agent naming.
 ```
 
+```text
+Use skill-port to audit this Codex plugin for Claude Code compatibility: ./vendor/codex-plugin
+```
+
+```text
+Use skill-port to audit this Gemini extension and recommend a Codex target layout: ./vendor/gemini-extension
+```
+
 The deterministic helper can also be run directly:
 
 ```bash
 python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent codex --format markdown
+python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent claude --format markdown
+python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent gemini --format markdown
 ```
 
 ## Safety Model
@@ -81,6 +121,12 @@ skills/skill-port/
   SKILL.md
   agents/openai.yaml
   references/
+    source-claude.md
+    source-codex.md
+    source-gemini.md
+    target-claude.md
+    target-codex.md
+    target-gemini.md
   scripts/audit_skill.py
 ```
 

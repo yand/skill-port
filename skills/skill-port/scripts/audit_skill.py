@@ -18,7 +18,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 MAX_TEXT_BYTES = 1_000_000
 
 SCRIPT_SUFFIXES = {
@@ -34,6 +34,7 @@ SCRIPT_SUFFIXES = {
     ".rb",
     ".pl",
     ".php",
+    ".toml",
 }
 
 ASSET_SUFFIXES = {
@@ -98,10 +99,25 @@ PATTERNS = {
     ],
     "claude_specific": [
         re.compile(r"\.claude(?:/|\\)"),
+        re.compile(r"\.claude-plugin(?:/|\\)"),
         re.compile(r"\bClaude Code\b"),
         re.compile(r"\bCowork\b"),
         re.compile(r"\$" + lit("ARG", "UMENTS")),
         re.compile(r"\bclaude\s+plugin\b"),
+    ],
+    "codex_specific": [
+        re.compile(r"\.codex(?:/|\\)"),
+        re.compile(r"\.codex-plugin(?:/|\\)"),
+        re.compile(r"\bAGENTS(?:\.override)?\.md\b"),
+        re.compile(r"\bagents/openai\.yaml\b"),
+        re.compile(r"\bcodex\s+plugin\b"),
+    ],
+    "gemini_specific": [
+        re.compile(r"\.gemini(?:/|\\)"),
+        re.compile(r"\bGEMINI\.md\b"),
+        re.compile(r"\bgemini-extension\.json\b"),
+        re.compile(r"\bgemini\s+(?:skills|extensions|mcp)\b"),
+        re.compile(r"\brun_shell_command\b"),
     ],
     "dynamic_context": [
         re.compile(r"(?m)^!\s*`[^`]+`"),
@@ -219,7 +235,13 @@ def file_kind(path: Path, rel: str) -> str:
     name = path.name
     suffix = path.suffix.lower()
     parts = rel.split("/")
-    if name in {"AGENTS.md", "AGENTS.override.md", "CLAUDE.md", "CLAUDE.local.md"} or rel.endswith("/CLAUDE.md") or rel.endswith("/AGENTS.md"):
+    if name in {
+        "AGENTS.md",
+        "AGENTS.override.md",
+        "CLAUDE.md",
+        "CLAUDE.local.md",
+        "GEMINI.md",
+    } or rel.endswith(("/CLAUDE.md", "/AGENTS.md", "/AGENTS.override.md", "/GEMINI.md")):
         return "instruction"
     if rel == "agents/openai.yaml":
         return "metadata"
@@ -227,14 +249,16 @@ def file_kind(path: Path, rel: str) -> str:
         return "skill"
     if name in {".mcp.json", "mcp.json"} or "mcp" in name.lower():
         return "mcp"
-    if name in {"plugin.json", "manifest.json"} or ".claude-plugin" in parts:
+    if name in {"plugin.json", "manifest.json", "marketplace.json", "gemini-extension.json"} or ".claude-plugin" in parts or ".codex-plugin" in parts:
         return "manifest"
     if name in {"hooks.json"} or "hooks" in parts:
         return "hook"
-    if "commands" in parts and suffix in {".md", ".txt"}:
+    if "commands" in parts and suffix in {".md", ".txt", ".toml"}:
         return "command"
-    if "agents" in parts and suffix in {".md", ".yaml", ".yml", ".json"}:
+    if "agents" in parts and suffix in {".md", ".yaml", ".yml", ".json", ".toml"}:
         return "agent"
+    if "policies" in parts and suffix == ".toml":
+        return "hook"
     if suffix in SCRIPT_SUFFIXES or "scripts" in parts:
         return "script"
     if suffix in ASSET_SUFFIXES or "assets" in parts or "examples" in parts:
@@ -265,15 +289,40 @@ def redact(value: str) -> str:
     return f"{value[:6]}...{value[-4:]}"
 
 
-def classify_source(inventory: dict[str, list[str]], has_claude_plugin_dir: bool) -> str:
+def detected_ecosystems(inventory: dict[str, list[str]], security_findings: list[dict[str, Any]]) -> list[str]:
+    ecosystems: set[str] = set()
+    all_paths = " ".join(
+        path
+        for paths in inventory.values()
+        for path in paths
+    ).lower()
+    categories = {finding["category"] for finding in security_findings}
+
+    if ".claude" in all_paths or "claude_specific" in categories:
+        ecosystems.add("claude")
+    if ".codex" in all_paths or "codex_specific" in categories or any(path.endswith("AGENTS.md") for path in inventory["instruction_files"]):
+        ecosystems.add("codex")
+    if ".gemini" in all_paths or "gemini_specific" in categories or any(path.endswith("GEMINI.md") for path in inventory["instruction_files"]):
+        ecosystems.add("gemini")
+    if inventory["skill_files"]:
+        ecosystems.add("agent-skills")
+    return sorted(ecosystems)
+
+
+def classify_source(inventory: dict[str, list[str]], has_plugin_dir: bool) -> str:
     has_skills = bool(inventory["skill_files"])
     has_commands = bool(inventory["command_files"])
     has_agents = bool(inventory["agent_files"])
     has_mcp = bool(inventory["mcp_files"])
     has_hooks = bool(inventory["hook_files"])
     has_instructions = bool(inventory["instruction_files"])
-    has_manifest = bool(inventory["manifest_files"]) or has_claude_plugin_dir
+    has_manifest = bool(inventory["manifest_files"]) or has_plugin_dir
+    has_extension = any(path.endswith("gemini-extension.json") for path in inventory["manifest_files"])
 
+    if has_extension and has_mcp:
+        return "mcp-backed-extension"
+    if has_extension:
+        return "extension"
     if has_manifest and has_mcp:
         return "mcp-backed-plugin"
     if has_manifest:
@@ -308,6 +357,10 @@ def compatibility_status(inventory: dict[str, list[str]], security_findings: lis
         reasons.append("Hooks require explicit lifecycle/event mapping before activation.")
     if "claude_specific" in categories:
         reasons.append("Claude-specific paths, commands, or runtime wording need adaptation.")
+    if "codex_specific" in categories:
+        reasons.append("Codex-specific paths, metadata, or runtime wording need adaptation.")
+    if "gemini_specific" in categories:
+        reasons.append("Gemini-specific paths, extensions, commands, or runtime wording need adaptation.")
     if "dynamic_context" in categories:
         reasons.append("Dynamic context injection needs target-specific rewriting or manual review.")
     if "invocation_control" in categories:
@@ -321,7 +374,7 @@ def compatibility_status(inventory: dict[str, list[str]], security_findings: lis
         status = "unsupported"
     elif inventory["mcp_files"]:
         status = "dependency-bound"
-    elif inventory["command_files"] or inventory["agent_files"] or inventory["instruction_files"] or {"claude_specific", "dynamic_context", "invocation_control"} & categories:
+    elif inventory["command_files"] or inventory["agent_files"] or inventory["instruction_files"] or {"claude_specific", "codex_specific", "gemini_specific", "dynamic_context", "invocation_control"} & categories:
         status = "needs-adaptation"
     elif inventory["skill_files"]:
         status = "portable"
@@ -352,6 +405,35 @@ def target_name_from_skill(path: str, frontmatter_by_file: dict[str, dict[str, s
     return re.sub(r"[^a-z0-9-]+", "-", parent.lower()).strip("-") or "ported-skill"
 
 
+def target_project_instruction_file(target_agent: str) -> str:
+    if target_agent == "codex":
+        return "AGENTS.md"
+    if target_agent in {"claude", "claude-code"}:
+        return "CLAUDE.md"
+    if target_agent in {"gemini", "gemini-cli"}:
+        return "GEMINI.md"
+    return "project-instructions.md"
+
+
+def target_agent_file(source_path: str, target_agent: str) -> str:
+    name = re.sub(r"[^a-z0-9-]+", "-", Path(source_path).stem.lower()).strip("-") or "agent"
+    if target_agent == "codex":
+        return f".codex/agents/{name}.toml"
+    if target_agent in {"claude", "claude-code", "gemini", "gemini-cli"}:
+        return f"agents/{name}.md"
+    return f"references/agents/{name}.md"
+
+
+def target_plugin_manifest(target_agent: str) -> str:
+    if target_agent == "codex":
+        return ".codex-plugin/plugin.json"
+    if target_agent in {"claude", "claude-code"}:
+        return ".claude-plugin/plugin.json"
+    if target_agent in {"gemini", "gemini-cli"}:
+        return "gemini-extension.json"
+    return "references/plugin-plan.md"
+
+
 def build_porting_map(root: Path, inventory: dict[str, list[str]], frontmatter_by_file: dict[str, dict[str, str]], target_agent: str) -> list[dict[str, str]]:
     source_name = re.sub(r"[^a-z0-9-]+", "-", root.name.lower()).strip("-") or "source"
     multi = len(inventory["skill_files"]) > 1 or bool(
@@ -373,14 +455,17 @@ def build_porting_map(root: Path, inventory: dict[str, list[str]], frontmatter_b
         mapped.append({"source": skill_file, "target": target, "action": "port-skill", "status": "translated"})
 
     for instruction_file in inventory["instruction_files"]:
-        target = f"ports/{source_name}/{target_agent}/AGENTS.md" if target_agent == "codex" else f"ports/{source_name}/{target_agent}/project-instructions.md"
+        target = f"ports/{source_name}/{target_agent}/{target_project_instruction_file(target_agent)}"
         mapped.append({"source": instruction_file, "target": target, "action": "adapt-project-instructions", "status": "translated"})
 
     for command_file in inventory["command_files"]:
         mapped.append({"source": command_file, "target": f"ports/{source_name}/{target_agent}/references/commands.md", "action": "adapt-command", "status": "translated"})
 
     for agent_file in inventory["agent_files"]:
-        mapped.append({"source": agent_file, "target": f"ports/{source_name}/{target_agent}/references/agents.md", "action": "document-orchestration", "status": "partial"})
+        mapped.append({"source": agent_file, "target": f"ports/{source_name}/{target_agent}/{target_agent_file(agent_file, target_agent)}", "action": "adapt-agent", "status": "partial"})
+
+    for manifest_file in inventory["manifest_files"]:
+        mapped.append({"source": manifest_file, "target": f"ports/{source_name}/{target_agent}/{target_plugin_manifest(target_agent)}", "action": "adapt-plugin-manifest", "status": "partial"})
 
     for mcp_file in inventory["mcp_files"]:
         mapped.append({"source": mcp_file, "target": f"ports/{source_name}/{target_agent}/references/dependencies.md", "action": "document-dependency", "status": "manual"})
@@ -393,7 +478,7 @@ def build_porting_map(root: Path, inventory: dict[str, list[str]], frontmatter_b
 
 def recommended_scope(root: Path, source_type: str, inventory: dict[str, list[str]]) -> dict[str, str]:
     skill_count = len(inventory["skill_files"])
-    ecosystem = source_type in {"plugin", "mcp-backed-plugin", "repo"} or skill_count > 1
+    ecosystem = source_type in {"plugin", "mcp-backed-plugin", "extension", "mcp-backed-extension", "repo"} or skill_count > 1
     if source_type == "skill" and skill_count <= 1:
         return {
             "recommended_scope": "single-skill",
@@ -421,7 +506,7 @@ def proposed_target_layout(root: Path, source_type: str, inventory: dict[str, li
 
 def candidate_items(porting: list[dict[str, str]], inventory: dict[str, list[str]]) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
     auto_port = [item for item in porting if item["action"] == "port-skill"]
-    auto_adapt = [item for item in porting if item["action"] in {"adapt-project-instructions", "adapt-command", "document-orchestration"}]
+    auto_adapt = [item for item in porting if item["action"] in {"adapt-project-instructions", "adapt-command", "adapt-agent", "adapt-plugin-manifest"}]
     dependencies = [item for item in porting if item["action"] == "document-dependency"]
     unsupported: list[dict[str, str]] = []
     for path in inventory["manifest_files"]:
@@ -489,15 +574,15 @@ def audit(root: Path, target_agent: str, target_agent_inferred: bool, mode: str)
     file_records: list[dict[str, Any]] = []
     security_findings: list[dict[str, Any]] = []
     frontmatter_by_file: dict[str, dict[str, str]] = {}
-    has_claude_plugin_dir = False
+    has_plugin_dir = False
 
     for path in sorted(root.rglob("*"), key=lambda p: p.as_posix()):
         if path.is_dir():
-            if path.name == ".claude-plugin":
-                has_claude_plugin_dir = True
+            if path.name in {".claude-plugin", ".codex-plugin"}:
+                has_plugin_dir = True
             continue
         rel = relpath(path, root)
-        if rel.startswith(".git/"):
+        if rel.startswith(".git/") or "__pycache__" in rel.split("/") or path.suffix == ".pyc":
             continue
         kind = file_kind(path, rel)
         try:
@@ -524,13 +609,21 @@ def audit(root: Path, target_agent: str, target_agent_inferred: bool, mode: str)
             frontmatter_by_file[rel] = parse_frontmatter(text)
 
         if text:
+            config_like = path.name in {"settings.json", "config.toml", "plugin.json", "gemini-extension.json"} or kind in {"manifest", "mcp"}
+            if config_like and ('"mcpServers"' in text or "'mcpServers'" in text or "[mcp_servers." in text):
+                if rel not in inventory["mcp_files"]:
+                    inventory["mcp_files"].append(rel)
+            if config_like and ("[hooks]" in text or '"hooks"' in text):
+                if kind not in {"hook", "skill"} and rel not in inventory["hook_files"]:
+                    inventory["hook_files"].append(rel)
             for finding in scan_patterns(text):
                 security_findings.append({"file": rel, **finding})
         elif binary and (kind not in {"asset"} or size > 5_000_000):
             security_findings.append({"file": rel, "category": "binary_or_large_file", "matches": [f"{size} bytes"]})
 
-    source_type = classify_source(inventory, has_claude_plugin_dir)
+    source_type = classify_source(inventory, has_plugin_dir)
     compatibility = compatibility_status(inventory, security_findings)
+    ecosystems = detected_ecosystems(inventory, security_findings)
     porting = build_porting_map(root, inventory, frontmatter_by_file, target_agent)
     scope = recommended_scope(root, source_type, inventory)
     layout = proposed_target_layout(root, source_type, inventory, target_agent, porting)
@@ -551,6 +644,7 @@ def audit(root: Path, target_agent: str, target_agent_inferred: bool, mode: str)
             "path": str(root),
             "name": source_name,
             "type": source_type,
+            "detected_ecosystems": ecosystems,
         },
         "locations": {
             "source_read_from": str(root),
@@ -592,6 +686,7 @@ def to_markdown(report: dict[str, Any]) -> str:
         "",
         f"- Source: `{report['source']['path']}`",
         f"- Source type: `{report['source']['type']}`",
+        f"- Detected ecosystems: `{', '.join(report['source']['detected_ecosystems']) or 'unknown'}`",
         f"- Target agent: `{report['target_agent']}`" + (" (inferred)" if report["recommendation"]["target_agent_inferred"] else ""),
         f"- Mode: `{report['mode']}`",
         f"- Compatibility: `{report['compatibility']['status']}`",
@@ -640,7 +735,7 @@ def to_markdown(report: dict[str, Any]) -> str:
         if report["auto_port_candidates"]:
             lines.append(f"- Port skill files: {len(report['auto_port_candidates'])}")
         if report["auto_adaptation_candidates"]:
-            lines.append(f"- Adapt commands/orchestration notes: {len(report['auto_adaptation_candidates'])}")
+            lines.append(f"- Adapt instructions, commands, agents, or plugin manifests: {len(report['auto_adaptation_candidates'])}")
         if report["dependency_bound_items"]:
             lines.append(f"- Stage dependency notes: {len(report['dependency_bound_items'])}")
         if report["unsupported_items"]:

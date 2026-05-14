@@ -6,13 +6,14 @@ Every audit or port should produce deterministic JSON and a human-readable Markd
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "mode": "audit-only",
   "target_agent": "codex",
   "source": {
     "path": "/absolute/source/path",
     "name": "source-name",
-    "type": "skill|plugin|repo|command-bundle|agent-bundle|mcp-backed-plugin|unknown"
+    "type": "skill|plugin|extension|repo|command-bundle|agent-bundle|mcp-backed-plugin|mcp-backed-extension|unknown",
+    "detected_ecosystems": ["agent-skills", "claude", "codex", "gemini"]
   },
   "locations": {
     "source_read_from": "/absolute/source/path",
@@ -38,6 +39,7 @@ Every audit or port should produce deterministic JSON and a human-readable Markd
     "agent_files": [],
     "mcp_files": [],
     "manifest_files": [],
+    "hook_files": [],
     "script_files": [],
     "asset_files": []
   },
@@ -88,6 +90,15 @@ Keep the Markdown report concise:
 - `needs-adaptation`: useful content exists, but target-specific syntax or behavior must be rewritten.
 - `dependency-bound`: core behavior depends on MCPs, APIs, app connectors, credentials, or subscriptions.
 - `unsupported`: source behavior is mostly unavailable in the target without new tooling.
+
+## Ecosystem Detection
+
+`detected_ecosystems` is informational. It should be derived from stable file paths and source-specific markers:
+
+- `agent-skills`: `SKILL.md` files.
+- `claude`: `.claude/`, `.claude-plugin/`, `CLAUDE.md`, Claude-specific fields or commands.
+- `codex`: `.codex/`, `.codex-plugin/`, `.agents/plugins/`, `AGENTS.md`, `agents/openai.yaml`.
+- `gemini`: `.gemini/`, `GEMINI.md`, `gemini-extension.json`, Gemini command/hook/policy markers.
 
 ## Audit Mode Standard
 
