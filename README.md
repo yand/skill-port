@@ -149,14 +149,6 @@ python3 skills/skill-port/scripts/audit_skill.py skills/skill-port --target-agen
 npx skills add . --list
 ```
 
-The `skills.sh` directory ranks installable skills from CLI telemetry and recommends a README explaining usage. Its audits can still flag risks, so users should review reports before installing any third-party skill.
-
-Once the public `skills.sh` detail page exists, this README can switch to the official install-count badge:
-
-```md
-[![skills.sh](https://skills.sh/b/yand/skill-port)](https://skills.sh/yand/skill-port)
-```
-
 ## License
 
 Licensed under the [Apache License 2.0](LICENSE). Attribution notices are provided in [NOTICE](NOTICE).
