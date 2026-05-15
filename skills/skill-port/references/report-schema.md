@@ -13,7 +13,7 @@ Every audit or port should produce deterministic JSON and a human-readable Markd
     "path": "/absolute/source/path",
     "name": "source-name",
     "type": "skill|plugin|extension|repo|command-bundle|agent-bundle|mcp-backed-plugin|mcp-backed-extension|unknown",
-    "detected_ecosystems": ["agent-skills", "claude", "codex", "gemini"]
+    "detected_ecosystems": ["agent-skills", "claude", "codex", "gemini", "antigravity"]
   },
   "locations": {
     "source_read_from": "/absolute/source/path",
@@ -99,6 +99,7 @@ Keep the Markdown report concise:
 - `claude`: `.claude/`, `.claude-plugin/`, `CLAUDE.md`, Claude-specific fields or commands.
 - `codex`: `.codex/`, `.codex-plugin/`, `.agents/plugins/`, `AGENTS.md`, `agents/openai.yaml`.
 - `gemini`: `.gemini/`, `GEMINI.md`, `gemini-extension.json`, Gemini command/hook/policy markers.
+- `antigravity`: `.agent/skills/`, `.agent/rules/`, `~/.gemini/antigravity/`, `mcp_config.json`, Antigravity rule/workflow/orchestration markers.
 
 ## Audit Mode Standard
 

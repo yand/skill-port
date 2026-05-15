@@ -119,6 +119,15 @@ PATTERNS = {
         re.compile(r"\bgemini\s+(?:skills|extensions|mcp)\b"),
         re.compile(r"\brun_shell_command\b"),
     ],
+    "antigravity_specific": [
+        re.compile(r"\.agent(?:/|\\)(?:skills|rules)(?:/|\\)"),
+        re.compile(r"\.gemini(?:/|\\)antigravity(?:/|\\)"),
+        re.compile(r"\bmcp_config\.json\b"),
+        re.compile(r"\bAntigravity\b"),
+        re.compile(r"\bAgent Manager\b"),
+        re.compile(r"\bPlanning Mode\b"),
+        re.compile(r"\bFast Mode\b"),
+    ],
     "dynamic_context": [
         re.compile(r"(?m)^!\s*`[^`]+`"),
     ],
@@ -155,19 +164,81 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+AGENT_ALIASES = {
+    "antigravity": "antigravity",
+    "google-antigravity": "antigravity",
+    "google-antigravity-agent": "antigravity",
+    "gemini-antigravity": "antigravity",
+    "gemini-antigravity-agent": "antigravity",
+    "codex": "codex",
+    "openai-codex": "codex",
+    "openai-codex-cli": "codex",
+    "codex-cli": "codex",
+    "claude": "claude",
+    "claude-code": "claude",
+    "anthropic-claude-code": "claude",
+    "gemini": "gemini",
+    "gemini-cli": "gemini",
+    "google-gemini": "gemini",
+    "google-gemini-cli": "gemini",
+    "cursor": "cursor",
+    "cursor-agent": "cursor",
+}
+
+
+def normalize_agent_name(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return AGENT_ALIASES.get(normalized, normalized or "codex")
+
+
 def infer_target_agent(explicit: str | None) -> tuple[str, bool]:
     if explicit:
-        return explicit, False
+        return normalize_agent_name(explicit), False
 
     env_pairs = {key.upper(): value.lower() for key, value in os.environ.items()}
-    joined = " ".join(f"{key}={value}" for key, value in env_pairs.items())
-    if "CODEX" in env_pairs or "codex" in joined:
+
+    # Prefer the host agent's explicit self-identification before heuristics.
+    runtime_hint_keys = {
+        "AGENT_RUNTIME",
+        "AGENT_NAME",
+        "AI_AGENT_RUNTIME",
+        "ASSISTANT_RUNTIME",
+        "CURRENT_AGENT",
+        "HOST_AGENT",
+        "TARGET_AGENT",
+    }
+    for key in runtime_hint_keys:
+        value = env_pairs.get(key, "").strip()
+        if value:
+            return normalize_agent_name(value), True
+
+    codex_keys = {"CODEX_HOME", "CODEX_SANDBOX", "CODEX_MANAGED_BY", "CODEX_SESSION_ID", "OPENAI_CODEX"}
+    claude_keys = {"CLAUDE_CONFIG_DIR", "CLAUDECODE", "CLAUDE_CODE", "CLAUDECODE_SESSION_ID", "ANTHROPIC_CLAUDE_CODE"}
+    cursor_keys = {"CURSOR_TRACE_ID", "CURSOR_AGENT", "CURSOR_SESSION"}
+    antigravity_keys = {"ANTIGRAVITY_HOME", "ANTIGRAVITY_AGENT", "ANTIGRAVITY_SESSION_ID", "GOOGLE_ANTIGRAVITY"}
+    gemini_keys = {"GEMINI_HOME", "GEMINI_API_KEY", "GEMINI_CLI", "GEMINI_CLI_SESSION"}
+
+    if codex_keys & env_pairs.keys():
         return "codex", True
-    if "CLAUDECODE" in joined or "claude_code" in joined or "claude-code" in joined:
+    if claude_keys & env_pairs.keys():
         return "claude", True
-    if "CURSOR" in env_pairs or "cursor" in joined:
+    if cursor_keys & env_pairs.keys():
         return "cursor", True
-    if "GEMINI" in env_pairs or "gemini" in joined:
+    if antigravity_keys & env_pairs.keys():
+        return "antigravity", True
+    if gemini_keys & env_pairs.keys():
+        return "gemini", True
+
+    joined = " ".join(f"{key}={value}" for key, value in env_pairs.items())
+    if "antigravity" in joined:
+        return "antigravity", True
+    if "claude_code" in joined or "claude-code" in joined:
+        return "claude", True
+    if "codex" in joined:
+        return "codex", True
+    if "cursor" in joined:
+        return "cursor", True
+    if "gemini" in joined:
         return "gemini", True
     return "codex", True
 
@@ -241,19 +312,21 @@ def file_kind(path: Path, rel: str) -> str:
         "CLAUDE.md",
         "CLAUDE.local.md",
         "GEMINI.md",
-    } or rel.endswith(("/CLAUDE.md", "/AGENTS.md", "/AGENTS.override.md", "/GEMINI.md")):
+    } or rel.endswith(("/CLAUDE.md", "/AGENTS.md", "/AGENTS.override.md", "/GEMINI.md")) or (
+        len(parts) >= 3 and parts[0] == ".agent" and parts[1] == "rules" and suffix in {".md", ".txt"}
+    ):
         return "instruction"
     if rel == "agents/openai.yaml":
         return "metadata"
     if name == "SKILL.md":
         return "skill"
-    if name in {".mcp.json", "mcp.json"} or "mcp" in name.lower():
+    if name in {".mcp.json", "mcp.json", "mcp_config.json"} or "mcp" in name.lower():
         return "mcp"
     if name in {"plugin.json", "manifest.json", "marketplace.json", "gemini-extension.json"} or ".claude-plugin" in parts or ".codex-plugin" in parts:
         return "manifest"
     if name in {"hooks.json"} or "hooks" in parts:
         return "hook"
-    if "commands" in parts and suffix in {".md", ".txt", ".toml"}:
+    if ("commands" in parts or "workflows" in parts) and suffix in {".md", ".txt", ".toml"}:
         return "command"
     if "agents" in parts and suffix in {".md", ".yaml", ".yml", ".json", ".toml"}:
         return "agent"
@@ -304,6 +377,8 @@ def detected_ecosystems(inventory: dict[str, list[str]], security_findings: list
         ecosystems.add("codex")
     if ".gemini" in all_paths or "gemini_specific" in categories or any(path.endswith("GEMINI.md") for path in inventory["instruction_files"]):
         ecosystems.add("gemini")
+    if ".gemini/antigravity" in all_paths or ".agent/skills" in all_paths or ".agent/rules" in all_paths or "antigravity_specific" in categories:
+        ecosystems.add("antigravity")
     if inventory["skill_files"]:
         ecosystems.add("agent-skills")
     return sorted(ecosystems)
@@ -361,6 +436,8 @@ def compatibility_status(inventory: dict[str, list[str]], security_findings: lis
         reasons.append("Codex-specific paths, metadata, or runtime wording need adaptation.")
     if "gemini_specific" in categories:
         reasons.append("Gemini-specific paths, extensions, commands, or runtime wording need adaptation.")
+    if "antigravity_specific" in categories:
+        reasons.append("Antigravity-specific skill, rule, MCP, workflow, or agent-manager behavior needs adaptation.")
     if "dynamic_context" in categories:
         reasons.append("Dynamic context injection needs target-specific rewriting or manual review.")
     if "invocation_control" in categories:
@@ -374,7 +451,7 @@ def compatibility_status(inventory: dict[str, list[str]], security_findings: lis
         status = "unsupported"
     elif inventory["mcp_files"]:
         status = "dependency-bound"
-    elif inventory["command_files"] or inventory["agent_files"] or inventory["instruction_files"] or {"claude_specific", "codex_specific", "gemini_specific", "dynamic_context", "invocation_control"} & categories:
+    elif inventory["command_files"] or inventory["agent_files"] or inventory["instruction_files"] or {"claude_specific", "codex_specific", "gemini_specific", "antigravity_specific", "dynamic_context", "invocation_control"} & categories:
         status = "needs-adaptation"
     elif inventory["skill_files"]:
         status = "portable"
@@ -410,7 +487,7 @@ def target_project_instruction_file(target_agent: str) -> str:
         return "AGENTS.md"
     if target_agent in {"claude", "claude-code"}:
         return "CLAUDE.md"
-    if target_agent in {"gemini", "gemini-cli"}:
+    if target_agent in {"gemini", "gemini-cli", "antigravity"}:
         return "GEMINI.md"
     return "project-instructions.md"
 
@@ -421,6 +498,8 @@ def target_agent_file(source_path: str, target_agent: str) -> str:
         return f".codex/agents/{name}.toml"
     if target_agent in {"claude", "claude-code", "gemini", "gemini-cli"}:
         return f"agents/{name}.md"
+    if target_agent == "antigravity":
+        return f"references/agents/{name}.md"
     return f"references/agents/{name}.md"
 
 
@@ -431,6 +510,8 @@ def target_plugin_manifest(target_agent: str) -> str:
         return ".claude-plugin/plugin.json"
     if target_agent in {"gemini", "gemini-cli"}:
         return "gemini-extension.json"
+    if target_agent == "antigravity":
+        return "references/plugin-plan.md"
     return "references/plugin-plan.md"
 
 
@@ -609,7 +690,7 @@ def audit(root: Path, target_agent: str, target_agent_inferred: bool, mode: str)
             frontmatter_by_file[rel] = parse_frontmatter(text)
 
         if text:
-            config_like = path.name in {"settings.json", "config.toml", "plugin.json", "gemini-extension.json"} or kind in {"manifest", "mcp"}
+            config_like = path.name in {"settings.json", "config.toml", "plugin.json", "gemini-extension.json", "mcp_config.json"} or kind in {"manifest", "mcp"}
             if config_like and ('"mcpServers"' in text or "'mcpServers'" in text or "[mcp_servers." in text):
                 if rel not in inventory["mcp_files"]:
                     inventory["mcp_files"].append(rel)

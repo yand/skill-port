@@ -1,6 +1,6 @@
 ---
 name: skill-port
-description: Audit and port AI agent skills, Claude Code skills/plugins, Codex skills/plugins, Gemini CLI skills/extensions, slash commands, agents, hooks, policies, MCP-backed plugins, and similar skill repositories across target agents. Use when asked to assess portability, generate a compatibility/security report, stage a port under target-agent naming, or adapt agent-specific skills/plugins for another runtime.
+description: Audit and port AI agent skills, Claude Code skills/plugins, Codex skills/plugins, Gemini CLI skills/extensions, Antigravity skills/rules/workflows, slash commands, agents, hooks, policies, MCP-backed plugins, and similar skill repositories across target agents. Use when asked to assess portability, generate a compatibility/security report, stage a port under target-agent naming, or adapt agent-specific skills/plugins for another runtime.
 license: Apache-2.0
 metadata:
   author: Yaniv Daniel
@@ -9,7 +9,7 @@ metadata:
 
 # Skill Port
 
-Use this skill to audit or port agent skills and plugin ecosystems. It supports Claude Code, Codex, Gemini CLI, and Agent Skills-compatible sources and targets through an adapter-based workflow.
+Use this skill to audit or port agent skills and plugin ecosystems. It supports Claude Code, Codex, Gemini CLI, Google Antigravity, and Agent Skills-compatible sources and targets through an adapter-based workflow.
 
 ## Operating Modes
 
@@ -34,7 +34,9 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
 
 1. **Identify source and target**
    - Determine source path or URL, source agent/ecosystem, target agent, and requested mode.
-   - If the target agent is not specified, infer it from the active runtime. When running in Codex, use `codex`.
+   - If the target agent is not specified, first use the active assistant/runtime's self-identification when available. Normalize known aliases for Codex, Claude Code, Gemini CLI, and Antigravity.
+   - For the deterministic helper, prefer `--target-agent`; otherwise it checks explicit runtime hints such as `AGENT_RUNTIME`, `AGENT_NAME`, `CURRENT_AGENT`, or `HOST_AGENT`, then high-confidence environment variables, then conservative substring fallback.
+   - Keep runtime inference separate from source ecosystem detection: a source may contain Gemini or Antigravity files even when the active target agent is Codex.
    - For remote URLs, clone/fetch only after user approval or explicit execution request; otherwise document the needed command.
    - For expensive scans, ask the user to run focused commands and share output.
 
@@ -46,9 +48,11 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
      - Claude sources: `references/source-claude.md`
      - Codex sources: `references/source-codex.md`
      - Gemini sources: `references/source-gemini.md`
+     - Antigravity sources: `references/source-antigravity.md`
      - Codex targets: `references/target-codex.md`
      - Claude targets: `references/target-claude.md`
      - Gemini targets: `references/target-gemini.md`
+     - Antigravity targets: `references/target-antigravity.md`
      - Large ecosystems: `references/ecosystem-porting.md`
      - Location policy: `references/locations.md`
      - Security review: `references/security.md`
@@ -79,6 +83,7 @@ python3 scripts/audit_skill.py <source-path> --target-agent codex
 python3 scripts/audit_skill.py <source-path> --target-agent codex --format markdown
 python3 scripts/audit_skill.py <source-path> --target-agent claude --format markdown
 python3 scripts/audit_skill.py <source-path> --target-agent gemini --format markdown
+python3 scripts/audit_skill.py <source-path> --target-agent antigravity --format markdown
 python3 scripts/audit_skill.py <source-path> --target-agent codex --output report.json
 ```
 

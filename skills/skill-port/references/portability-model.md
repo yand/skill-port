@@ -8,9 +8,9 @@ Use this reference before porting between agent ecosystems. Model the source as 
 | --- | --- | --- |
 | Project instructions | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, nested override files | Translate or bridge; do not treat as skills. |
 | Skills | `SKILL.md`, `scripts/`, `references/`, `assets/` | Usually the most portable layer. |
-| Commands | Slash commands, command prompts, Gemini `commands/*.toml`, user-triggered workflows | Translate into target triggers/workflows. |
-| Agents | Claude subagents, Codex custom agents, Gemini subagents, managed agents | Convert only known configuration fields; otherwise document as partial/unsupported. |
-| Plugins | Plugin manifests, marketplaces, Gemini extensions, install metadata | Rebuild for target package format; do not rename blindly. |
+| Commands | Slash commands, command prompts, Gemini `commands/*.toml`, Antigravity workflows, user-triggered workflows | Translate into target triggers/workflows. |
+| Agents | Claude subagents, Codex custom agents, Gemini subagents, Antigravity Agent Manager notes, managed agents | Convert only known configuration fields; otherwise document as partial/unsupported. |
+| Plugins | Plugin manifests, marketplaces, Gemini extensions, Antigravity skill/rule bundles, install metadata | Rebuild for target package format; do not rename blindly. |
 | MCP/tools | `.mcp.json`, config files, tool manifests | Convert simple configs when target format is known; credentials/setup remain manual. |
 | Hooks and policies | Lifecycle scripts/checks, Gemini policies, tool safety rules | Treat as advanced and risky; convert only with known event/matcher/IO mapping. |
 

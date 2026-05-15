@@ -2,9 +2,9 @@
 
 [![Install with skills.sh](https://img.shields.io/badge/install%20with-skills.sh-111827)](https://www.skills.sh/docs/cli)
 
-`skill-port` is an Agent Skills portability auditor for developers who want to reuse AI agent skills, plugins, slash commands, subagents, MCP configs, and workflow packs across Claude Code, Codex, Gemini CLI, and other Agent Skills-compatible runtimes.
+`skill-port` is an Agent Skills portability auditor for developers who want to reuse AI agent skills, plugins, slash commands, subagents, MCP configs, and workflow packs across Claude Code, Codex, Gemini CLI, Google Antigravity, and other Agent Skills-compatible runtimes.
 
-Use it when a Claude Code plugin does not work in Codex, a Codex skill needs to be adapted for Claude Code, a Gemini CLI extension needs a portability review, or a skill repository needs a deterministic compatibility and security report before installation.
+Use it when a Claude Code plugin does not work in Codex, a Codex skill needs to be adapted for Claude Code, a Gemini CLI extension or Antigravity skill/rule bundle needs a portability review, or a skill repository needs a deterministic compatibility and security report before installation.
 
 The installable skill lives at [`skills/skill-port`](skills/skill-port/SKILL.md).
 
@@ -13,6 +13,7 @@ The installable skill lives at [`skills/skill-port`](skills/skill-port/SKILL.md)
 - "Can I use this Claude Code skill or plugin in Codex?"
 - "What needs to change before this Codex skill works in Claude Code?"
 - "How portable is this Gemini CLI extension?"
+- "Can this Antigravity skill, rule, workflow, or MCP setup be reused elsewhere?"
 - "Which parts of this agent plugin are standard Agent Skills, and which parts are vendor-specific?"
 - "Does this skill contain risky scripts, hooks, network calls, secret-like values, or destructive commands?"
 - "Where should ported files be staged without mutating my global agent install?"
@@ -27,10 +28,10 @@ The `skills.sh` CLI is the main discovery path for public skill directories and 
 
 ## What It Does
 
-- Audits Agent Skills, Claude Code skills/plugins, Codex skills/plugins, Gemini CLI skills/extensions, command bundles, agent bundles, and MCP-backed plugin repos.
+- Audits Agent Skills, Claude Code skills/plugins, Codex skills/plugins, Gemini CLI skills/extensions, Antigravity skills/rules/workflows, command bundles, agent bundles, and MCP-backed plugin repos.
 - Reports portability, target-agent compatibility, source/target file mapping, security findings, dependencies, and manual setup.
 - Stages ported output under target-agent naming instead of mutating installed skill directories.
-- Helps adapt source-specific artifacts such as slash commands, Codex custom agents, Gemini extensions, Cowork plugins, managed-agent cookbooks, hooks, policies, and MCP connector notes.
+- Helps adapt source-specific artifacts such as slash commands, Codex custom agents, Gemini extensions, Antigravity rules/workflows, Cowork plugins, managed-agent cookbooks, hooks, policies, and MCP connector notes.
 
 ## Common Searches
 
@@ -40,11 +41,13 @@ People looking for this skill may describe the problem as:
 - Claude skill to Codex skill
 - Codex skill to Claude Code
 - Gemini CLI extension portability
+- Antigravity skill portability
+- Antigravity MCP config audit
 - Agent Skills converter
 - AI agent skill adapter
 - MCP plugin portability audit
 - slash command migration for AI coding agents
-- subagent portability between Claude Code, Codex, and Gemini CLI
+- subagent portability between Claude Code, Codex, Gemini CLI, and Antigravity
 - skills.sh compatible skill audit
 
 ## Install
@@ -93,13 +96,20 @@ Use skill-port to audit this Codex plugin for Claude Code compatibility: ./vendo
 Use skill-port to audit this Gemini extension and recommend a Codex target layout: ./vendor/gemini-extension
 ```
 
+```text
+Use skill-port to audit this Antigravity skill/rule bundle for Claude Code compatibility: ./vendor/antigravity-bundle
+```
+
 The deterministic helper can also be run directly:
 
 ```bash
 python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent codex --format markdown
 python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent claude --format markdown
 python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent gemini --format markdown
+python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent antigravity --format markdown
 ```
+
+If `--target-agent` is omitted, the helper first honors explicit runtime self-identification such as `AGENT_RUNTIME`, `AGENT_NAME`, `CURRENT_AGENT`, or `HOST_AGENT`, then falls back to high-confidence environment variables and conservative heuristics. Known aliases normalize to `codex`, `claude`, `gemini`, or `antigravity`.
 
 ## Safety Model
 
@@ -120,17 +130,11 @@ See [SECURITY.md](SECURITY.md) for the full safety boundary and reporting guidan
 skills/skill-port/
   SKILL.md
   agents/openai.yaml
-  references/
-    source-claude.md
-    source-codex.md
-    source-gemini.md
-    target-claude.md
-    target-codex.md
-    target-gemini.md
+  references/               # source/target adapters, security, reporting, location policy
   scripts/audit_skill.py
 ```
 
-This uses a standard `skills/<name>/` layout so skill indexes and installers can discover the skill without relying on recursive fallback.
+This uses a standard `skills/<name>/` layout so skill indexes and installers can discover the skill without relying on recursive fallback. Adapter references currently cover Claude Code, Codex, Gemini CLI, and Antigravity as both sources and targets.
 
 ## Index Readiness
 
