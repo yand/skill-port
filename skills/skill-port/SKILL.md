@@ -62,19 +62,23 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
    - Portable: agent-neutral `SKILL.md`, references, examples, assets, templates.
    - Needs adaptation: slash commands, agent prompts, Claude wording, target-specific frontmatter.
    - Dependency-bound: MCP configs, external APIs, subscriptions, app connectors, credentials.
-   - Unsupported: lifecycle hooks, automatic plugin installation, Cowork dispatch, managed-agent orchestration, policy engines, and target-specific extension behavior unless a target equivalent is available.
+   - Target-native candidates: command entrypoints, agent workflows, MCP setup snippets, app/document connector mappings, and no-op hook records when the target has a reasonable equivalent or documentation surface.
+   - Unsupported: active lifecycle hooks, automatic plugin installation, automatic dispatch, managed-agent orchestration, policy engines, and target-specific extension behavior unless a target equivalent is available.
+   - Distinguish empty/no-op hook configs from active hooks. Empty hook files should be recorded as no-op source artifacts, not treated as blockers.
    - Mark each mapped item as `direct`, `translated`, `partial`, `unsupported`, or `manual`.
 
 4. **Port only when requested**
    - Create target-agent skill folders in the staging location.
    - Rewrite frontmatter for the target agent.
-   - Convert slash-command intent into trigger text or workflow sections.
-   - Create dependency and unsupported-feature notes for MCPs, provider credentials, app connectors, lifecycle hooks, and orchestration behavior.
+   - Convert slash-command intent into target-native entrypoints: trigger text, workflow sections, command maps, or router skills where the target has no native slash-command package format.
+   - Convert procedural agent/subagent prompts into workflow skills or orchestration recipes. Preserve automatic dispatch, tool isolation, and managed handoff behavior as explicit limitations unless the target supports them.
+   - Convert MCP configs into target setup notes or config snippets with credential placeholders. Provider credentials, app provisioning, subscriptions, and final enablement stay manual.
+   - Create dependency and unsupported-feature notes for provider credentials, app connectors, active lifecycle hooks, and orchestration behavior.
    - Keep unsupported features in dependency notes or a compatibility report; do not pretend they work.
 
 5. **Report**
    - Follow `references/report-schema.md`.
-   - Include target compatibility, recommended scope, proposed target layout, auto-port candidates, dependency-bound items, unsupported items, security findings, output paths, install commands, and remaining manual steps.
+   - Include target compatibility, recommended scope, proposed target layout, layer summary, conversion status, command mapping plan, agent/workflow mapping plan, MCP setup plan, no-op versus active hook treatment, dependency-bound items, unsupported items, security findings, output paths, install commands, and remaining manual steps.
 
 ## Useful Commands
 
@@ -98,4 +102,4 @@ For every audit or port, state:
 - Recommended scope and proposed target layout.
 - Automatic work that can be done in port mode.
 - Security findings that affect installation or trust.
-- Manual setup still required, limited to credentials, MCP servers, app connectors, provisioning, regulated human review, or target-agent installation.
+- Manual setup still required, limited to credentials, subscriptions, MCP/tool enablement, app connector provisioning, regulated human review, or target-agent installation.

@@ -31,7 +31,8 @@ The `skills.sh` CLI is the main discovery path for public skill directories and 
 - Audits Agent Skills, Claude Code skills/plugins, Codex skills/plugins, Gemini CLI skills/extensions, Antigravity skills/rules/workflows, command bundles, agent bundles, and MCP-backed plugin repos.
 - Reports portability, target-agent compatibility, source/target file mapping, security findings, dependencies, and manual setup.
 - Stages ported output under target-agent naming instead of mutating installed skill directories.
-- Helps adapt source-specific artifacts such as slash commands, Codex custom agents, Gemini extensions, Antigravity rules/workflows, Cowork plugins, managed-agent cookbooks, hooks, policies, and MCP connector notes.
+- Helps adapt source-specific artifacts such as slash commands, Codex custom agents, Gemini extensions, Antigravity rules/workflows, Cowork plugins, managed-agent cookbooks, hooks, policies, and MCP connector setup.
+- Maps non-skill plugin layers into target-native plans where possible: command maps/router skills, workflow skills for named agents, MCP setup snippets with credential placeholders, and no-op versus active hook treatment.
 
 ## Common Searches
 

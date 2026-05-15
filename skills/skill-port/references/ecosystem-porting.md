@@ -41,11 +41,35 @@ Choose a recommended scope without asking when the source structure is clear:
 Map slash commands automatically in audit recommendations and port mode:
 
 - Command name -> inferred target trigger.
-- Command body -> target workflow or `references/commands.md` entry.
+- Command body -> target workflow, `references/command-map.md` entry, or command-router skill.
 - `$ARGUMENTS`-style placeholders -> instruction to parse the user request and ask only for missing required inputs.
+- Frontmatter descriptions and argument hints -> target trigger text and required/optional input schema.
 - Command chaining -> target workflow steps or unsupported orchestration notes.
 
-Unknown commands should still be mapped to `references/commands.md` with source path, inferred trigger, expected inputs, and target workflow notes.
+Unknown commands should still be mapped to `references/command-map.md` with source path, inferred trigger, expected inputs, and target workflow notes.
+
+When a source has many commands and the target lacks native slash-command packaging, recommend a small router skill that maps the familiar command names to the target workflows. The router should not execute commands; it should select the right skill/workflow and parse required inputs.
+
+## Agent and Orchestration Defaults
+
+Do not collapse agent/plugin ecosystems to skill files only when named agents are part of the product:
+
+- Agent role prompt -> workflow skill or target agent definition.
+- Expected artifacts -> explicit workflow outputs.
+- Guardrails and review stops -> preserved in the workflow skill.
+- Component skill list -> references to target skills by target names.
+- Tool allowlists -> required capability notes.
+- Callable subagents, managed handoffs, dispatch, and tool-isolated workers -> orchestration recipe or unsupported/partial item unless the target runtime supports equivalent behavior.
+
+If the target supports optional multi-agent delegation, describe it as an execution recipe, not as guaranteed automatic behavior.
+
+## Hook Mapping Defaults
+
+Classify hook files by behavior, not just path:
+
+- Empty configs such as `[]`, `{}`, or `{ "hooks": {} }` -> no-op compatibility notes.
+- Active hooks -> lifecycle migration plan with source event, matcher/scope, invoked command/tool, expected input/output contract, safety review, and target equivalent.
+- Unknown hook syntax -> partial/manual, not active by default.
 
 ## Dependency Notes Defaults
 
@@ -53,7 +77,7 @@ Do not leave dependency design as a manual step. In audit mode, propose dependen
 
 - `references/dependencies.md`: provider/app dependency inventory.
 - `references/data-sources.md`: data provenance, required sources, and fallback rules.
-- `references/mcp-setup.md`: target-agent MCP setup requirements without credentials.
+- `references/mcp-setup.md` or target-specific variants such as `references/codex-mcp-setup.md`: target-agent MCP setup requirements without credentials.
 - `references/unsupported.md`: plugin marketplace, lifecycle, app provisioning, or orchestration behavior that is not natively available.
 
 Provider credentials, subscriptions, app provisioning, and MCP/tool enablement remain external manual setup.
