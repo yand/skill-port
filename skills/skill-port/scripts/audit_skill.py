@@ -529,8 +529,59 @@ def target_plugin_manifest(target_agent: str) -> str:
     return "references/plugin-plan.md"
 
 
-def target_command_file(source_name: str, target_agent: str) -> str:
+def source_plugin_slug(source_path: str) -> str | None:
+    parts = Path(source_path).parts
+    if ".claude-plugin" in parts:
+        idx = parts.index(".claude-plugin")
+        if idx > 0:
+            return re.sub(r"[^a-z0-9-]+", "-", parts[idx - 1].lower()).strip("-")
+    for marker in ("skills", "commands", "agents", "hooks"):
+        if marker in parts:
+            idx = parts.index(marker)
+            if idx > 0:
+                return re.sub(r"[^a-z0-9-]+", "-", parts[idx - 1].lower()).strip("-")
+    if "plugins" in parts:
+        idx = parts.index("plugins")
+        after = parts[idx + 1 :]
+        if len(after) >= 3:
+            return re.sub(r"[^a-z0-9-]+", "-", after[1].lower()).strip("-")
+        if len(after) >= 1:
+            return re.sub(r"[^a-z0-9-]+", "-", after[0].lower()).strip("-")
+    return None
+
+
+def codex_plugin_mode(source_type: str, inventory: dict[str, list[str]]) -> bool:
+    return source_type in {"plugin", "mcp-backed-plugin"} or bool(
+        inventory["manifest_files"] or inventory["mcp_files"] or inventory["hook_files"]
+    )
+
+
+def codex_plugin_base(source_name: str, inventory: dict[str, list[str]], source_path: str | None = None) -> str:
+    plugin_roots = {
+        slug
+        for path in (
+            inventory["manifest_files"]
+            + inventory["skill_files"]
+            + inventory["command_files"]
+            + inventory["agent_files"]
+            + inventory["mcp_files"]
+            + inventory["hook_files"]
+        )
+        if (slug := source_plugin_slug(path))
+    }
+    multi_plugin = len(plugin_roots) > 1 or any(path.endswith("marketplace.json") for path in inventory["manifest_files"])
+    if multi_plugin:
+        slug = source_plugin_slug(source_path or "") if source_path else None
+        if slug:
+            return f"ports/{source_name}/codex-marketplace/plugins/{slug}"
+        return f"ports/{source_name}/codex-marketplace"
+    return f"ports/{source_name}/codex-plugin"
+
+
+def target_command_file(source_name: str, target_agent: str, inventory: dict[str, list[str]] | None = None, source_path: str | None = None) -> str:
     if target_agent == "codex":
+        if inventory is not None:
+            return f"{codex_plugin_base(source_name, inventory, source_path)}/references/command-map.md"
         return f"ports/{source_name}/{target_agent}/references/command-map.md"
     if target_agent in {"claude", "claude-code"}:
         return f"ports/{source_name}/{target_agent}/commands/"
@@ -539,8 +590,10 @@ def target_command_file(source_name: str, target_agent: str) -> str:
     return f"ports/{source_name}/{target_agent}/references/commands.md"
 
 
-def target_mcp_setup_file(source_name: str, target_agent: str) -> str:
+def target_mcp_setup_file(source_name: str, target_agent: str, inventory: dict[str, list[str]] | None = None, source_path: str | None = None) -> str:
     if target_agent == "codex":
+        if inventory is not None:
+            return f"{codex_plugin_base(source_name, inventory, source_path)}/.mcp.json"
         return f"ports/{source_name}/{target_agent}/references/codex-mcp-setup.md"
     if target_agent in {"claude", "claude-code"}:
         return f"ports/{source_name}/{target_agent}/references/claude-mcp-setup.md"
@@ -566,36 +619,56 @@ def build_porting_map(
         or inventory["instruction_files"]
     )
     mapped: list[dict[str, str]] = []
+    use_codex_plugin = target_agent == "codex" and codex_plugin_mode(classify_source(inventory, bool(inventory["manifest_files"])), inventory)
 
     for skill_file in inventory["skill_files"]:
         skill_name = target_name_from_skill(skill_file, frontmatter_by_file)
-        if multi:
+        if use_codex_plugin:
+            target = f"{codex_plugin_base(source_name, inventory, skill_file)}/skills/{skill_name}/SKILL.md"
+        elif multi:
             target = f"ports/{source_name}/{target_agent}/skills/{skill_name}/SKILL.md"
         else:
             target = f"skills/{target_agent}/{skill_name}/SKILL.md"
         mapped.append({"source": skill_file, "target": target, "action": "port-skill", "status": "translated"})
 
     for instruction_file in inventory["instruction_files"]:
-        target = f"ports/{source_name}/{target_agent}/{target_project_instruction_file(target_agent)}"
+        if use_codex_plugin:
+            target = f"{codex_plugin_base(source_name, inventory, instruction_file)}/references/{target_project_instruction_file(target_agent)}"
+        else:
+            target = f"ports/{source_name}/{target_agent}/{target_project_instruction_file(target_agent)}"
         mapped.append({"source": instruction_file, "target": target, "action": "adapt-project-instructions", "status": "translated"})
 
     for command_file in inventory["command_files"]:
-        mapped.append({"source": command_file, "target": target_command_file(source_name, target_agent), "action": "adapt-command-entrypoint", "status": "translated"})
+        mapped.append({"source": command_file, "target": target_command_file(source_name, target_agent, inventory, command_file), "action": "adapt-command-entrypoint", "status": "translated"})
 
     for agent_file in inventory["agent_files"]:
-        mapped.append({"source": agent_file, "target": f"ports/{source_name}/{target_agent}/{target_agent_file(agent_file, target_agent)}", "action": "adapt-agent-workflow", "status": "partial"})
+        if use_codex_plugin:
+            target = f"{codex_plugin_base(source_name, inventory, agent_file)}/{target_agent_file(agent_file, target_agent)}"
+        else:
+            target = f"ports/{source_name}/{target_agent}/{target_agent_file(agent_file, target_agent)}"
+        mapped.append({"source": agent_file, "target": target, "action": "adapt-agent-workflow", "status": "partial"})
 
     for manifest_file in inventory["manifest_files"]:
-        mapped.append({"source": manifest_file, "target": f"ports/{source_name}/{target_agent}/{target_plugin_manifest(target_agent)}", "action": "adapt-plugin-manifest", "status": "partial"})
+        if use_codex_plugin:
+            if manifest_file.endswith("marketplace.json"):
+                target = f"ports/{source_name}/codex-marketplace/.agents/plugins/marketplace.json"
+            else:
+                target = f"{codex_plugin_base(source_name, inventory, manifest_file)}/.codex-plugin/plugin.json"
+        else:
+            target = f"ports/{source_name}/{target_agent}/{target_plugin_manifest(target_agent)}"
+        mapped.append({"source": manifest_file, "target": target, "action": "adapt-plugin-manifest", "status": "partial"})
 
     for mcp_file in inventory["mcp_files"]:
-        mapped.append({"source": mcp_file, "target": target_mcp_setup_file(source_name, target_agent), "action": "adapt-mcp-setup", "status": "manual"})
+        mapped.append({"source": mcp_file, "target": target_mcp_setup_file(source_name, target_agent, inventory, mcp_file), "action": "adapt-mcp-setup", "status": "manual"})
 
     for hook_file in inventory["hook_files"]:
+        hook_base = codex_plugin_base(source_name, inventory, hook_file) if use_codex_plugin else f"ports/{source_name}/{target_agent}"
         if hook_file in empty_hook_files:
-            mapped.append({"source": hook_file, "target": f"ports/{source_name}/{target_agent}/references/hooks.md", "action": "record-empty-hook", "status": "direct"})
+            target = f"{hook_base}/hooks/hooks.json" if use_codex_plugin else f"{hook_base}/references/hooks.md"
+            mapped.append({"source": hook_file, "target": target, "action": "record-empty-hook", "status": "direct"})
         else:
-            mapped.append({"source": hook_file, "target": f"ports/{source_name}/{target_agent}/references/hook-migration.md", "action": "adapt-hook-behavior", "status": "partial"})
+            target = f"{hook_base}/hooks/hooks.json" if use_codex_plugin else f"{hook_base}/references/hook-migration.md"
+            mapped.append({"source": hook_file, "target": target, "action": "adapt-hook-behavior", "status": "partial"})
 
     return mapped
 
@@ -621,6 +694,8 @@ def recommended_scope(root: Path, source_type: str, inventory: dict[str, list[st
 
 def proposed_target_layout(root: Path, source_type: str, inventory: dict[str, list[str]], target_agent: str, porting: list[dict[str, str]]) -> str | None:
     source_name = re.sub(r"[^a-z0-9-]+", "-", root.name.lower()).strip("-") or "source"
+    if target_agent == "codex" and codex_plugin_mode(source_type, inventory):
+        return codex_plugin_base(source_name, inventory) + "/"
     if source_type == "skill" and len(inventory["skill_files"]) <= 1 and porting:
         return str(Path(porting[0]["target"]).parent)
     if porting or source_type != "unknown":

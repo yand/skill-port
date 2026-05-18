@@ -33,32 +33,86 @@ Project guidance belongs in `AGENTS.md` or target project-instruction files, not
 ## Staging Paths
 
 - Single skill: `skills/codex/<skill-name>/`
-- Multi-skill/plugin source: `ports/<source-name>/codex/`
+- Single plugin source: `ports/<source-name>/codex-plugin/`
+- Multi-plugin or marketplace source: `ports/<source-name>/codex-marketplace/`
+- Multi-skill non-plugin source: `ports/<source-name>/codex/`
 - Do not write directly to `~/.codex/skills/` unless the user explicitly asks for installation.
+
+## Plugin Shape
+
+Codex plugins bundle skills, app integrations, MCP servers, hooks, and assets behind one installable unit. Prefer a Codex plugin target whenever the source is a Claude/Cowork plugin, MCP-backed plugin, plugin marketplace, or multi-plugin repository.
+
+Stage a single plugin as:
+
+```text
+ports/<source-name>/codex-plugin/
+  .codex-plugin/plugin.json
+  skills/
+  .mcp.json              # optional
+  .app.json              # optional
+  hooks/hooks.json       # optional
+  references/
+  assets/
+```
+
+Stage a multi-plugin marketplace as:
+
+```text
+ports/<source-name>/codex-marketplace/
+  .agents/plugins/marketplace.json
+  plugins/<plugin-name>/
+    .codex-plugin/plugin.json
+    skills/
+    .mcp.json
+    hooks/hooks.json
+    references/
+```
+
+Codex plugin manifests use `.codex-plugin/plugin.json` as the required entry point. Manifest fields such as `skills`, `mcpServers`, `apps`, and `hooks` should point to plugin-root-relative paths such as `./skills/`, `./.mcp.json`, `./.app.json`, and `./hooks/hooks.json`. The manifest `name` must match the marketplace plugin `name`; prefer the staged plugin folder slug as the Codex plugin identifier and preserve the source display name in `interface.displayName` or descriptive fields.
+
+Include an `interface` object for plugin-directory visibility and install-surface copy. At minimum, generate `displayName`, `shortDescription`, `longDescription`, `developerName`, `category`, `capabilities`, and a simple `defaultPrompt`. Missing interface metadata can make otherwise valid local plugins hard to discover in Codex Desktop.
+
+Codex marketplace files live at `$REPO_ROOT/.agents/plugins/marketplace.json` for repo-scoped marketplaces or `~/.agents/plugins/marketplace.json` for a personal marketplace. Marketplace entries must include `source`, `policy`, and `category`. Local `source.path` values must start with `./` and resolve inside the marketplace root. For staged ports, prefer a repo-style marketplace root at `ports/<source-name>/codex-marketplace/` and expose it with:
+
+```bash
+codex plugin marketplace add <absolute-path-to-codex-marketplace>
+```
+
+After adding or changing a marketplace, stop and tell the user to restart Codex. The plugin directory should then show the marketplace; install and enable the desired plugins there or through another official Codex UI/command when available. Do not edit `~/.codex/config.toml` by hand to force `[plugins."<name>@<marketplace>"] enabled = true` entries. Do not describe copied folders, marketplace registration, or hand-edited config as "installed."
+
+For Codex Desktop local testing, use Codex's private local bundle pattern when the user explicitly asks to install staged plugins:
+
+```bash
+python3 scripts/install_codex_local_bundle.py <staged-codex-marketplace>
+```
+
+This registers the staged marketplace, copies each plugin into `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>`, sets `[features] plugins = true`, and enables `[plugins."<plugin>@<marketplace>"] enabled = true`. It does not execute source scripts, package managers, hooks, MCP servers, or plugin commands. The user must restart Codex before testing.
 
 ## Claude-to-Codex Rules
 
 - Convert `CLAUDE.md` project guidance into `AGENTS.md` guidance or a bridge note; do not treat it as a skill.
-- Convert Claude slash commands into trigger descriptions, workflow sections, `references/command-map.md`, or a small router skill when the source has many commands. Preserve command argument hints as required-input parsing rules.
-- Convert Claude subagent/agent prompts into Codex workflow skills when they describe a reusable procedure. Keep automatic dispatch, scoped tool isolation, and managed-agent handoff as orchestration notes unless a Codex runtime equivalent is explicitly available.
-- Convert plugin manifests into metadata notes, target plugin implementation plans, or grouped skill bundles. Do not treat marketplace registration or plugin installation as migrated behavior.
-- Treat MCP configs as target setup artifacts. Generate `references/codex-mcp-setup.md` with server names, endpoint types/URLs, expected auth placeholders, and source tool-name mapping. Do not claim the MCP is available unless Codex has the matching server/tool configured.
-- Distinguish empty hook files from active lifecycle behavior. Empty hooks are no-op records; active hooks need `references/hook-migration.md` with event, matcher, tool, input, output, and safety mapping.
+- Convert Claude plugin manifests into `.codex-plugin/plugin.json`, not only notes. Preserve version/description/author where possible, but keep the Codex manifest `name` aligned with the marketplace entry and staged plugin folder. Add `skills`, `mcpServers`, `hooks`, and install-surface `interface` metadata.
+- Convert Claude marketplace manifests into Codex-valid `.agents/plugins/marketplace.json` entries with `source`, `policy`, and `category` fields that point at staged Codex plugin directories.
+- Convert Claude slash commands into bundled plugin skills, trigger descriptions, workflow sections, and `references/command-map.md`. Preserve command names, aliases, descriptions, argument hints, and required-input parsing rules.
+- Convert Claude subagent/agent prompts into bundled Codex workflow skills when they describe a reusable procedure. Keep automatic dispatch, scoped tool isolation, and managed-agent handoff as orchestration notes unless a Codex runtime equivalent is explicitly available.
+- Treat MCP configs as bundled plugin MCP artifacts. Generate plugin `.mcp.json` plus `references/mcp-setup.md` with server names, endpoint types/URLs, expected auth placeholders, source tool-name mapping, provider accounts, and subscription requirements. Do not claim the MCP is usable until credentials/tool enablement are configured.
+- Distinguish empty hook files from active lifecycle behavior. Empty hooks can be copied as no-op `hooks/hooks.json`; active hooks may target `hooks/hooks.json` only when schema and safety are understood, otherwise create `references/hook-migration.md` with event, matcher, tool, input, output, and safety mapping.
 - Keep references/assets when they are target-neutral and useful.
 
 ## Codex-Native Mapping Preferences
 
 When several Codex equivalents are possible, prefer the narrowest native surface that preserves user-facing behavior:
 
-- Reusable task knowledge -> Codex skill.
+- Claude plugin or marketplace -> Codex plugin or Codex marketplace.
+- Reusable task knowledge inside a plugin -> bundled Codex plugin skill.
 - Project-wide guidance -> `AGENTS.md`.
-- Many command entrypoints -> command map plus optional router skill.
-- Named workflow agent -> workflow skill that names expected artifacts, review stops, required tools, and component skills.
+- Many command entrypoints -> plugin `references/command-map.md` plus bundled command-router skill.
+- Named workflow agent -> bundled workflow skill that names expected artifacts, review stops, required tools, and component skills.
 - Managed subagents -> orchestration recipe or explicit subtask delegation notes; do not promise automatic spawning.
-- Remote or local MCP config -> Codex MCP setup notes/config snippets with disabled/manual credential placeholders.
+- Remote or local MCP config -> plugin `.mcp.json` plus setup notes/config snippets with disabled/manual credential placeholders.
 - Office/document/spreadsheet/presentation MCP references -> Codex Documents, Spreadsheets, Presentations, connector, or file-artifact workflow notes when those target capabilities are available.
-- Empty hook config -> no-op compatibility note.
-- Active hook config -> partial migration plan or unsupported item until the target hook mechanism is known.
+- Empty hook config -> plugin no-op `hooks/hooks.json` or no-op compatibility note.
+- Active hook config -> plugin `hooks/hooks.json` only after schema/safety review; otherwise partial migration plan.
 
 ## Gemini-to-Codex Rules
 
@@ -72,15 +126,29 @@ When several Codex equivalents are possible, prefer the narrowest native surface
 
 In audit-only mode, recommend the concrete Codex staging layout and automatic port work without creating files:
 
-- Skills: `ports/<source-name>/codex/skills/<skill-name>/SKILL.md` for plugin ecosystems.
-- Commands: `ports/<source-name>/codex/references/command-map.md` and, for many commands, `ports/<source-name>/codex/skills/<source-name>-command-router/SKILL.md`.
-- Agent workflows: `ports/<source-name>/codex/skills/<agent-name>-workflow/SKILL.md` plus orchestration references when needed.
-- MCP setup: `ports/<source-name>/codex/references/codex-mcp-setup.md`.
-- Dependencies: `ports/<source-name>/codex/references/dependencies.md` for subscriptions, app provisioning, provider accounts, and credentials.
-- Hooks: `ports/<source-name>/codex/references/hooks.md` for no-op hooks or `references/hook-migration.md` for active hooks.
-- Unsupported behavior: `ports/<source-name>/codex/references/unsupported.md`.
+- Codex plugin manifest: `ports/<source-name>/codex-plugin/.codex-plugin/plugin.json` or `ports/<source-name>/codex-marketplace/plugins/<plugin>/.codex-plugin/plugin.json`.
+- Marketplace: `ports/<source-name>/codex-marketplace/.agents/plugins/marketplace.json` for multi-plugin sources.
+- Skills: plugin-contained `skills/<skill-name>/SKILL.md`, not global `~/.codex/skills`.
+- Commands: plugin `references/command-map.md` and, for many commands, bundled `<plugin>-command-router` skill.
+- Agent workflows: bundled `<agent-name>-workflow` skills plus orchestration references when needed.
+- MCP setup: plugin `.mcp.json` plus `references/mcp-setup.md`.
+- Dependencies: plugin `references/dependencies.md` for subscriptions, app provisioning, provider accounts, and credentials.
+- Hooks: plugin `hooks/hooks.json` for no-op or compatible hooks, otherwise `references/hook-migration.md`.
+- Unsupported behavior: plugin `references/unsupported.md`.
 
 Only list credentials, subscriptions, MCP enablement, app provisioning, final install, and regulated human review as remaining manual steps.
+
+## Port Mode Standard
+
+When the source is a plugin or marketplace, use the deterministic staging helper:
+
+```bash
+python3 scripts/stage_port.py <source-path> --target-agent codex --output-root <workspace> --clean
+```
+
+For Codex plugin targets, do not install plugin-internal skills into `~/.codex/skills` as a substitute for plugin packaging. A flat global skill install is allowed only when the user explicitly asks for one or the source is a single skill/non-plugin bundle.
+
+After staging, report the generated plugin or marketplace path and the exact Codex CLI command to expose it, usually `codex plugin marketplace add <marketplace-root>`. If the user asked to install for Codex Desktop local testing, prefer `scripts/install_codex_local_bundle.py <staged-codex-marketplace>` so marketplace registration, cache copies, and enabled plugin config are applied together. State that the user must restart Codex before bundled skills appear. Do not claim MCP servers, apps, or hooks are usable until required credentials/tooling are configured.
 
 ## Validation
 

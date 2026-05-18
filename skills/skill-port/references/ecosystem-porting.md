@@ -18,6 +18,7 @@ Large ecosystems often include:
 
 When auditing a whole ecosystem and the user has not named a specific workflow, recommend a focused default bundle rather than asking whether to port everything:
 
+- If the target supports plugins and the source is a plugin or marketplace, preserve plugin boundaries instead of flattening everything into global skills.
 - Prefer workflows backed by clear `SKILL.md` files.
 - Include command files only when their intent can be mapped to a target-agent trigger/workflow.
 - Include shared references, templates, and examples only when directly used by selected workflows.
@@ -49,6 +50,26 @@ Map slash commands automatically in audit recommendations and port mode:
 Unknown commands should still be mapped to `references/command-map.md` with source path, inferred trigger, expected inputs, and target workflow notes.
 
 When a source has many commands and the target lacks native slash-command packaging, recommend a small router skill that maps the familiar command names to the target workflows. The router should not execute commands; it should select the right skill/workflow and parse required inputs.
+
+## Plugin Mapping Defaults
+
+For targets with a plugin system, plugin-to-plugin migration is the preferred target for plugin sources:
+
+- Source plugin manifest -> target plugin manifest.
+- Source marketplace -> target marketplace catalog.
+- Source plugin skills -> bundled target plugin skills.
+- Source plugin MCP config -> bundled target plugin MCP config plus setup notes.
+- Source plugin hooks -> bundled target plugin hooks only when compatible or no-op; otherwise migration notes.
+- Source plugin commands -> bundled router/workflow skills plus command map.
+- Source plugin assets/templates -> bundled assets or references.
+
+For Codex, use `.codex-plugin/plugin.json`, plugin `skills/`, optional `.mcp.json`, optional `hooks/hooks.json`, optional `.app.json`, and marketplace entries in `.agents/plugins/marketplace.json`. Codex marketplace entries must use the documented `source`, `policy`, and `category` fields. For local staged marketplaces, run or tell the user to run `codex plugin marketplace add <marketplace-root>`, then stop. Tell the user to restart Codex and install/enable desired plugins from Codex's plugin directory or another official Codex UI/command when available. When the user explicitly asks for local Codex Desktop installation for testing, use the reviewed local-bundle installer instead of ad hoc config edits.
+
+Do not install every plugin-internal skill as a global top-level skill unless the user explicitly asks for a flat skill install. Flat installs are acceptable for single-skill sources and small non-plugin bundles, but they are noisy for marketplaces and agent/plugin ecosystems.
+
+In port mode, use the deterministic staging helper when available. If the helper's audit recommends a plugin or marketplace layout, follow that layout exactly; do not replace it with a flat `skills/` install because it is easier to script.
+
+Do not claim that a Codex plugin is installed simply because files were copied under `plugins/` or a marketplace JSON was edited. Do not use hand-edited `[plugins."<name>@<marketplace>"] enabled = true` entries as an install substitute. For explicit local Codex Desktop installs, use `scripts/install_codex_local_bundle.py` so marketplace registration, cache copies, and config enablement are applied together.
 
 ## Agent and Orchestration Defaults
 
