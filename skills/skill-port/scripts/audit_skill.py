@@ -552,7 +552,11 @@ def source_plugin_slug(source_path: str) -> str | None:
 
 def codex_plugin_mode(source_type: str, inventory: dict[str, list[str]]) -> bool:
     return source_type in {"plugin", "mcp-backed-plugin"} or bool(
-        inventory["manifest_files"] or inventory["mcp_files"] or inventory["hook_files"]
+        inventory["manifest_files"]
+        or inventory["command_files"]
+        or inventory["agent_files"]
+        or inventory["mcp_files"]
+        or inventory["hook_files"]
     )
 
 
@@ -569,13 +573,10 @@ def codex_plugin_base(source_name: str, inventory: dict[str, list[str]], source_
         )
         if (slug := source_plugin_slug(path))
     }
-    multi_plugin = len(plugin_roots) > 1 or any(path.endswith("marketplace.json") for path in inventory["manifest_files"])
-    if multi_plugin:
-        slug = source_plugin_slug(source_path or "") if source_path else None
-        if slug:
-            return f"ports/{source_name}/codex-marketplace/plugins/{slug}"
+    if source_path is None:
         return f"ports/{source_name}/codex-marketplace"
-    return f"ports/{source_name}/codex-plugin"
+    plugin_slug = source_plugin_slug(source_path) or (sorted(plugin_roots)[0] if len(plugin_roots) == 1 else source_name)
+    return f"ports/{source_name}/codex-marketplace/plugins/{plugin_slug}"
 
 
 def target_command_file(source_name: str, target_agent: str, inventory: dict[str, list[str]] | None = None, source_path: str | None = None) -> str:

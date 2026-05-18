@@ -38,6 +38,7 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
    - For the deterministic helper, prefer `--target-agent`; otherwise it checks explicit runtime hints such as `AGENT_RUNTIME`, `AGENT_NAME`, `CURRENT_AGENT`, or `HOST_AGENT`, then high-confidence environment variables, then conservative substring fallback.
    - Keep runtime inference separate from source ecosystem detection: a source may contain Gemini or Antigravity files even when the active target agent is Codex.
    - For remote URLs, clone/fetch only after user approval or explicit execution request; otherwise document the needed command.
+   - If a remote URL points at a single command file inside a plugin, fetch the adjacent plugin metadata too when practical (for example `.claude-plugin/plugin.json`, `plugin.json`, or marketplace metadata) so original creator/author/homepage/version values are preserved in the staged target manifest.
    - For expensive scans, ask the user to run focused commands and share output.
 
 2. **Run inventory**
@@ -79,6 +80,7 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
    - Do not edit `~/.codex/config.toml` by ad hoc string appends. If local installation is explicitly requested, use the deterministic local bundle installer so config changes, cache copies, and marketplace registration stay consistent.
    - Do not call marketplace registration alone "installed." A local Codex plugin bundle install requires marketplace registration, plugin cache copy, and enabled plugin config.
    - Convert slash-command intent into target-native entrypoints: trigger text, workflow sections, command maps, or router skills where the target has no native slash-command package format.
+   - Preserve original creator, author, homepage, and version metadata when generating target manifests. If a command file is installed without its surrounding plugin metadata, record that creator metadata was unavailable rather than replacing it with the porter as the creator.
    - Convert procedural agent/subagent prompts into workflow skills or orchestration recipes. Preserve automatic dispatch, tool isolation, and managed handoff behavior as explicit limitations unless the target supports them.
    - Convert MCP configs into target MCP files, setup notes, or config snippets with credential placeholders. Provider credentials, app provisioning, subscriptions, and final enablement stay manual.
    - Create dependency and unsupported-feature notes for provider credentials, app connectors, active lifecycle hooks, and orchestration behavior.

@@ -33,8 +33,7 @@ Project guidance belongs in `AGENTS.md` or target project-instruction files, not
 ## Staging Paths
 
 - Single skill: `skills/codex/<skill-name>/`
-- Single plugin source: `ports/<source-name>/codex-plugin/`
-- Multi-plugin or marketplace source: `ports/<source-name>/codex-marketplace/`
+- Plugin or marketplace source: `ports/<source-name>/codex-marketplace/`
 - Multi-skill non-plugin source: `ports/<source-name>/codex/`
 - Do not write directly to `~/.codex/skills/` unless the user explicitly asks for installation.
 
@@ -42,20 +41,7 @@ Project guidance belongs in `AGENTS.md` or target project-instruction files, not
 
 Codex plugins bundle skills, app integrations, MCP servers, hooks, and assets behind one installable unit. Prefer a Codex plugin target whenever the source is a Claude/Cowork plugin, MCP-backed plugin, plugin marketplace, or multi-plugin repository.
 
-Stage a single plugin as:
-
-```text
-ports/<source-name>/codex-plugin/
-  .codex-plugin/plugin.json
-  skills/
-  .mcp.json              # optional
-  .app.json              # optional
-  hooks/hooks.json       # optional
-  references/
-  assets/
-```
-
-Stage a multi-plugin marketplace as:
+Stage plugin sources as a repo-style marketplace so they can be exposed with `codex plugin marketplace add` and installed through Codex:
 
 ```text
 ports/<source-name>/codex-marketplace/
@@ -92,6 +78,7 @@ This registers the staged marketplace, copies each plugin into `~/.codex/plugins
 
 - Convert `CLAUDE.md` project guidance into `AGENTS.md` guidance or a bridge note; do not treat it as a skill.
 - Convert Claude plugin manifests into `.codex-plugin/plugin.json`, not only notes. Preserve version/description/author where possible, but keep the Codex manifest `name` aligned with the marketplace entry and staged plugin folder. Add `skills`, `mcpServers`, `hooks`, and install-surface `interface` metadata.
+- Preserve original creator/author metadata as source attribution. Do not replace a source creator with the porter. If a single command file is ported without its surrounding plugin manifest, preserve any command-frontmatter creator/author fields and document missing source metadata rather than inventing ownership.
 - Convert Claude marketplace manifests into Codex-valid `.agents/plugins/marketplace.json` entries with `source`, `policy`, and `category` fields that point at staged Codex plugin directories.
 - Convert Claude slash commands into bundled plugin skills, trigger descriptions, workflow sections, and `references/command-map.md`. Preserve command names, aliases, descriptions, argument hints, and required-input parsing rules.
 - Convert Claude subagent/agent prompts into bundled Codex workflow skills when they describe a reusable procedure. Keep automatic dispatch, scoped tool isolation, and managed-agent handoff as orchestration notes unless a Codex runtime equivalent is explicitly available.
@@ -126,8 +113,8 @@ When several Codex equivalents are possible, prefer the narrowest native surface
 
 In audit-only mode, recommend the concrete Codex staging layout and automatic port work without creating files:
 
-- Codex plugin manifest: `ports/<source-name>/codex-plugin/.codex-plugin/plugin.json` or `ports/<source-name>/codex-marketplace/plugins/<plugin>/.codex-plugin/plugin.json`.
-- Marketplace: `ports/<source-name>/codex-marketplace/.agents/plugins/marketplace.json` for multi-plugin sources.
+- Codex plugin manifest: `ports/<source-name>/codex-marketplace/plugins/<plugin>/.codex-plugin/plugin.json`.
+- Marketplace: `ports/<source-name>/codex-marketplace/.agents/plugins/marketplace.json` for plugin sources.
 - Skills: plugin-contained `skills/<skill-name>/SKILL.md`, not global `~/.codex/skills`.
 - Commands: plugin `references/command-map.md` and, for many commands, bundled `<plugin>-command-router` skill.
 - Agent workflows: bundled `<agent-name>-workflow` skills plus orchestration references when needed.

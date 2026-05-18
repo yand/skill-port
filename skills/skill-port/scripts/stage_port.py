@@ -98,6 +98,111 @@ def append_command_map(path: Path, source_root: Path, command_path: Path) -> Non
         handle.write(f"- `{rel}` -> {description}.{suffix}\n")
 
 
+def command_name(command_path: Path) -> str:
+    frontmatter_name = frontmatter_field(command_path, "name")
+    return slug(frontmatter_name or command_path.stem)
+
+
+def command_description(command_path: Path) -> str:
+    return re.sub(
+        r"\s+",
+        " ",
+        frontmatter_field(command_path, "description") or title_from_markdown(command_path),
+    ).strip()
+
+
+def command_metadata(commands: list[Path]) -> dict[str, str]:
+    for command in commands:
+        text = command.read_text(encoding="utf-8", errors="replace")
+        frontmatter, _ = read_frontmatter(text)
+        for key in ("creator", "author"):
+            value = frontmatter.get(key, "").strip()
+            if value:
+                return {key: value}
+    return {}
+
+
+def contributor_from_manifest(source_manifest: dict[str, Any], commands: list[Path] | None = None) -> tuple[dict[str, Any] | str | None, str]:
+    contributor = source_manifest.get("creator") or source_manifest.get("author")
+    if not contributor and commands:
+        metadata = command_metadata(commands)
+        contributor = metadata.get("creator") or metadata.get("author")
+    if isinstance(contributor, dict):
+        name = str(contributor.get("name") or "Source Metadata Unavailable").strip()
+    elif isinstance(contributor, str):
+        name = contributor.strip()
+    else:
+        name = "Source Metadata Unavailable"
+    return contributor, name or "Source Metadata Unavailable"
+
+
+def plugin_root_for(path: Path) -> Path | None:
+    parts = path.parts
+    if ".codex-plugin" in parts:
+        return Path(*parts[: parts.index(".codex-plugin")])
+    if "references" in parts:
+        return Path(*parts[: parts.index("references")])
+    if "skills" in parts:
+        return Path(*parts[: parts.index("skills")])
+    if "hooks" in parts:
+        return Path(*parts[: parts.index("hooks")])
+    return None
+
+
+def codex_plugin_name(plugin_root: Path, source_manifest: dict[str, Any] | None = None) -> str:
+    manifest_name = source_manifest.get("name") if source_manifest else None
+    if isinstance(manifest_name, str) and manifest_name.strip():
+        return slug(manifest_name)
+    if plugin_root.name in {"codex-plugin", "codex-marketplace"} and plugin_root.parent.name:
+        return slug(plugin_root.parent.name)
+    return slug(plugin_root.name)
+
+
+def write_command_workflow_skill(plugin_root: Path, source_root: Path, commands: list[Path]) -> Path:
+    plugin_name = codex_plugin_name(plugin_root)
+    display_name = re.sub(r"[-_]+", " ", plugin_name).strip().title() or "Command Workflow"
+    skill_dir = plugin_root / "skills" / plugin_name
+    skill_path = skill_dir / "SKILL.md"
+    skill_dir.mkdir(parents=True, exist_ok=True)
+
+    descriptions = [command_description(command) for command in commands]
+    primary_description = descriptions[0] if descriptions else f"Run workflows ported from {display_name} commands."
+    command_lines = []
+    for command in commands:
+        rel = command.relative_to(source_root).as_posix()
+        name = command_name(command)
+        description = command_description(command)
+        argument_hint = frontmatter_field(command, "argument-hint")
+        input_text = f" Inputs: `{argument_hint}`." if argument_hint else ""
+        command_lines.append(f"- `{name}` from `{rel}`: {description}.{input_text}")
+
+    body = (
+        f"# {display_name}\n\n"
+        "This skill exposes workflows ported from source slash commands. Use the command names "
+        "as natural-language triggers; do not assume the source agent's slash-command runtime, "
+        "dynamic context injection, tool allowlists, or automatic command execution are available.\n\n"
+        "## Safety Rules\n\n"
+        "- Treat source command files as instructions, not executable scripts.\n"
+        "- Do not run broad repository scans or high-output commands without asking the user first.\n"
+        "- Do not read secret files. Report `.env*`, private keys, and credential-like files by path only.\n"
+        "- Prefer bounded `rg --files` and targeted file reads over unbounded recursive output.\n\n"
+        "## Ported Commands\n\n"
+        + "\n".join(command_lines)
+        + "\n\n"
+        "## Workflow\n\n"
+        "1. Identify which ported command the user wants to run from their request.\n"
+        "2. Read `references/command-map.md` and the preserved source command reference when needed.\n"
+        "3. Convert source command placeholders or argument hints into explicit input handling; ask only for missing required inputs.\n"
+        "4. Execute the workflow using target-agent tools and local project instructions.\n"
+        "5. Preserve the source command's expected deliverable, but adapt unsafe or source-specific behavior into explicit reviewed steps.\n"
+    )
+    skill_path.write_text(
+        f"---\nname: {plugin_name}\ndescription: {primary_description}\n---\n\n{body}",
+        encoding="utf-8",
+    )
+    return skill_path
+
+
 def write_agent_workflow(source_root: Path, src: Path, dst: Path) -> None:
     text = src.read_text(encoding="utf-8", errors="replace")
     frontmatter, body = read_frontmatter(text)
@@ -120,18 +225,12 @@ def load_json(path: Path) -> dict[str, Any]:
         return {}
 
 
-def write_codex_manifest(src: Path, dst: Path) -> None:
-    source_manifest = load_json(src)
+def write_codex_manifest(src: Path | None, dst: Path, *, commands: list[Path] | None = None) -> None:
+    source_manifest = load_json(src) if src else {}
     plugin_root = dst.parents[1]
-    plugin_name = slug(plugin_root.name)
+    plugin_name = codex_plugin_name(plugin_root, source_manifest)
     description = source_manifest.get("description") or f"Ported plugin {plugin_root.name}"
-    author = source_manifest.get("author")
-    if isinstance(author, dict):
-        developer_name = author.get("name") or "Ported Plugin"
-    elif isinstance(author, str):
-        developer_name = author
-    else:
-        developer_name = "Ported Plugin"
+    contributor, developer_name = contributor_from_manifest(source_manifest, commands)
     manifest: dict[str, Any] = {
         "name": plugin_name,
         "version": str(source_manifest.get("version") or "0.1.0"),
@@ -147,14 +246,26 @@ def write_codex_manifest(src: Path, dst: Path) -> None:
             "defaultPrompt": [f"Use {re.sub(r'[-_]+', ' ', plugin_name).strip().title()}."],
         },
     }
+    if commands and not source_manifest.get("description"):
+        descriptions = [command_description(command) for command in commands]
+        if descriptions:
+            manifest["description"] = descriptions[0]
+            manifest["interface"]["shortDescription"] = descriptions[0][:120]
+            manifest["interface"]["longDescription"] = descriptions[0]
+            manifest["interface"]["defaultPrompt"] = [
+                f"Use {plugin_name} to run the {command_name(commands[0])} workflow."
+            ]
     if (plugin_root / ".mcp.json").exists():
         manifest["mcpServers"] = "./.mcp.json"
     if (plugin_root / ".app.json").exists():
         manifest["apps"] = "./.app.json"
     if (plugin_root / "hooks" / "hooks.json").exists():
         manifest["hooks"] = "./hooks/hooks.json"
-    if author:
-        manifest["author"] = author
+    for key in ("creator", "author"):
+        if source_manifest.get(key):
+            manifest[key] = source_manifest[key]
+    if contributor and not manifest.get("creator") and not manifest.get("author"):
+        manifest["creator"] = contributor
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -207,6 +318,14 @@ def copy_json(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
+def copy_command_reference(source_root: Path, command_path: Path, plugin_root: Path) -> Path:
+    rel = command_path.relative_to(source_root)
+    ref = plugin_root / "references" / "source-commands" / rel.with_suffix(".md")
+    ref.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(command_path, ref)
+    return ref
+
+
 def output_base(report: dict[str, Any]) -> str:
     layout = report["recommendation"].get("proposed_target_layout")
     if layout:
@@ -230,6 +349,8 @@ def main() -> int:
     written: list[str] = []
     deferred_marketplaces: list[Path] = []
     deferred_manifests: list[tuple[Path, Path]] = []
+    commands_by_plugin_root: dict[Path, list[Path]] = {}
+    manifest_roots: set[Path] = set()
 
     for item in report["porting_map"]:
         src = source_root / item["source"]
@@ -241,6 +362,10 @@ def main() -> int:
         elif action == "adapt-command-entrypoint":
             append_command_map(dst, source_root, src)
             written.append(str(dst))
+            root_for_command = plugin_root_for(dst)
+            if target_agent == "codex" and root_for_command is not None:
+                commands_by_plugin_root.setdefault(root_for_command, []).append(src)
+                written.append(str(copy_command_reference(source_root, src, root_for_command)))
         elif action == "adapt-agent-workflow":
             write_agent_workflow(source_root, src, dst)
             written.append(str(dst))
@@ -277,11 +402,26 @@ def main() -> int:
             written.append(str(dst))
 
     for src, dst in deferred_manifests:
-        write_codex_manifest(src, dst)
+        root_for_manifest = plugin_root_for(dst)
+        commands = commands_by_plugin_root.get(root_for_manifest, []) if root_for_manifest else []
+        write_codex_manifest(src, dst, commands=commands)
+        if root_for_manifest:
+            manifest_roots.add(root_for_manifest)
         written.append(str(dst))
+    for plugin_root, commands in commands_by_plugin_root.items():
+        workflow_skill = write_command_workflow_skill(plugin_root, source_root, commands)
+        written.append(str(workflow_skill))
+        manifest_path = plugin_root / ".codex-plugin" / "plugin.json"
+        if plugin_root not in manifest_roots and not manifest_path.exists():
+            write_codex_manifest(None, manifest_path, commands=commands)
+            written.append(str(manifest_path))
     for dst in deferred_marketplaces:
         write_marketplace(report, root, dst)
         written.append(str(dst))
+    synthetic_marketplace = base / ".agents" / "plugins" / "marketplace.json"
+    if target_agent == "codex" and base.name == "codex-marketplace" and not synthetic_marketplace.exists():
+        write_marketplace(report, root, synthetic_marketplace)
+        written.append(str(synthetic_marketplace))
 
     report["locations"]["output_path"] = str(base)
     if (base / ".agents" / "plugins" / "marketplace.json").exists():
