@@ -31,7 +31,9 @@ The `skills.sh` CLI is the main discovery path for public skill directories and 
 - Audits Agent Skills, Claude Code skills/plugins, Codex skills/plugins, Gemini CLI skills/extensions, Antigravity skills/rules/workflows, command bundles, agent bundles, and MCP-backed plugin repos.
 - Reports portability, target-agent compatibility, source/target file mapping, security findings, dependencies, and manual setup.
 - Stages ported output under target-agent naming instead of mutating installed skill directories.
-- Helps adapt source-specific artifacts such as slash commands, Codex custom agents, Gemini extensions, Antigravity rules/workflows, Cowork plugins, managed-agent cookbooks, hooks, policies, and MCP connector notes.
+- Helps adapt source-specific artifacts such as slash commands, Codex custom agents, Gemini extensions, Antigravity rules/workflows, Cowork plugins, managed-agent cookbooks, hooks, policies, and MCP connector setup.
+- Maps non-skill plugin layers into target-native plans where possible: command maps/router skills, workflow skills for named agents, MCP setup snippets with credential placeholders, and no-op versus active hook treatment.
+- For Claude/Cowork plugin sources targeting Codex, prefers Codex plugin or marketplace layouts over noisy flat global skill installs.
 
 ## Common Searches
 
@@ -107,7 +109,24 @@ python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent
 python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent claude --format markdown
 python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent gemini --format markdown
 python3 skills/skill-port/scripts/audit_skill.py ./path/to/source --target-agent antigravity --format markdown
+python3 skills/skill-port/scripts/stage_port.py ./path/to/source --target-agent codex --output-root . --clean
 ```
+
+For Codex plugin or marketplace ports, staging does not install or enable plugins. Review the staged files, then expose a local marketplace with:
+
+```bash
+codex plugin marketplace add ./ports/<source-name>/codex-marketplace
+```
+
+Restart Codex, then install and enable the desired plugins from Codex's plugin directory or another official Codex UI/command when available. Do not hand-edit `~/.codex/config.toml` plugin enablement entries as a substitute for installation. Bundled plugin skills appear only after the plugin is installed and enabled by Codex.
+
+For Codex Desktop local testing, install a staged marketplace with Codex's private local bundle pattern:
+
+```bash
+python3 skills/skill-port/scripts/install_codex_local_bundle.py ./ports/<source-name>/codex-marketplace
+```
+
+This registers the marketplace, copies plugin directories into `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>`, enables the plugins in `~/.codex/config.toml`, and requires a Codex restart.
 
 If `--target-agent` is omitted, the helper first honors explicit runtime self-identification such as `AGENT_RUNTIME`, `AGENT_NAME`, `CURRENT_AGENT`, or `HOST_AGENT`, then falls back to high-confidence environment variables and conservative heuristics. Known aliases normalize to `codex`, `claude`, `gemini`, or `antigravity`.
 

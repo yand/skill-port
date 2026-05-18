@@ -62,19 +62,31 @@ Default to `audit-only` when the user's request is unclear or security-sensitive
    - Portable: agent-neutral `SKILL.md`, references, examples, assets, templates.
    - Needs adaptation: slash commands, agent prompts, Claude wording, target-specific frontmatter.
    - Dependency-bound: MCP configs, external APIs, subscriptions, app connectors, credentials.
-   - Unsupported: lifecycle hooks, automatic plugin installation, Cowork dispatch, managed-agent orchestration, policy engines, and target-specific extension behavior unless a target equivalent is available.
+   - Target-native candidates: plugin manifests/marketplaces, bundled skills, command entrypoints, agent workflows, MCP setup snippets, app/document connector mappings, and no-op hook records when the target has a reasonable equivalent or documentation surface.
+   - Unsupported: active lifecycle hooks, automatic plugin installation, automatic dispatch, managed-agent orchestration, policy engines, and target-specific extension behavior unless a target equivalent is available.
+   - Distinguish empty/no-op hook configs from active hooks. Empty hook files should be recorded as no-op source artifacts, not treated as blockers.
+   - When the source and target both support plugins, prefer plugin-to-plugin migration over a flat skill install.
    - Mark each mapped item as `direct`, `translated`, `partial`, `unsupported`, or `manual`.
 
 4. **Port only when requested**
-   - Create target-agent skill folders in the staging location.
+   - Prefer `scripts/stage_port.py` for deterministic staging. It consumes the same audit mapping and writes the target layout without installing anything.
+   - Create target-agent skill or plugin folders in the staging location.
    - Rewrite frontmatter for the target agent.
-   - Convert slash-command intent into trigger text or workflow sections.
-   - Create dependency and unsupported-feature notes for MCPs, provider credentials, app connectors, lifecycle hooks, and orchestration behavior.
+   - For plugin sources targeting Codex, stage a Codex plugin or Codex marketplace with `.codex-plugin/plugin.json`, bundled `skills/`, optional `.mcp.json`, optional `.app.json`, optional `hooks/hooks.json`, and `references/`.
+   - Do not mirror plugin-internal skills into global `~/.codex/skills` unless the user explicitly asks for a flat skill install.
+   - For Codex plugin sources, staging is not installation. To expose a staged marketplace to Codex, use `codex plugin marketplace add <marketplace-root>`, then stop. Tell the user to restart Codex and install/enable desired plugins from Codex's plugin directory or another official Codex UI/command when available.
+   - For Codex Desktop local plugin installation, use Codex's private local bundle pattern when the user explicitly asks to install: run `scripts/install_codex_local_bundle.py <staged-codex-marketplace>` after reviewing staged files. This registers the marketplace, copies plugins into `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>`, enables `[features] plugins = true`, and marks each plugin enabled in `~/.codex/config.toml`.
+   - Do not edit `~/.codex/config.toml` by ad hoc string appends. If local installation is explicitly requested, use the deterministic local bundle installer so config changes, cache copies, and marketplace registration stay consistent.
+   - Do not call marketplace registration alone "installed." A local Codex plugin bundle install requires marketplace registration, plugin cache copy, and enabled plugin config.
+   - Convert slash-command intent into target-native entrypoints: trigger text, workflow sections, command maps, or router skills where the target has no native slash-command package format.
+   - Convert procedural agent/subagent prompts into workflow skills or orchestration recipes. Preserve automatic dispatch, tool isolation, and managed handoff behavior as explicit limitations unless the target supports them.
+   - Convert MCP configs into target MCP files, setup notes, or config snippets with credential placeholders. Provider credentials, app provisioning, subscriptions, and final enablement stay manual.
+   - Create dependency and unsupported-feature notes for provider credentials, app connectors, active lifecycle hooks, and orchestration behavior.
    - Keep unsupported features in dependency notes or a compatibility report; do not pretend they work.
 
 5. **Report**
    - Follow `references/report-schema.md`.
-   - Include target compatibility, recommended scope, proposed target layout, auto-port candidates, dependency-bound items, unsupported items, security findings, output paths, install commands, and remaining manual steps.
+   - Include target compatibility, recommended scope, proposed target layout, layer summary, conversion status, command mapping plan, agent/workflow mapping plan, MCP setup plan, no-op versus active hook treatment, dependency-bound items, unsupported items, security findings, output paths, install commands, and remaining manual steps.
 
 ## Useful Commands
 
@@ -85,6 +97,7 @@ python3 scripts/audit_skill.py <source-path> --target-agent claude --format mark
 python3 scripts/audit_skill.py <source-path> --target-agent gemini --format markdown
 python3 scripts/audit_skill.py <source-path> --target-agent antigravity --format markdown
 python3 scripts/audit_skill.py <source-path> --target-agent codex --output report.json
+python3 scripts/stage_port.py <source-path> --target-agent codex --output-root . --clean
 ```
 
 ## Output Standard
@@ -98,4 +111,5 @@ For every audit or port, state:
 - Recommended scope and proposed target layout.
 - Automatic work that can be done in port mode.
 - Security findings that affect installation or trust.
-- Manual setup still required, limited to credentials, MCP servers, app connectors, provisioning, regulated human review, or target-agent installation.
+- Manual setup still required, limited to credentials, subscriptions, MCP/tool enablement, app connector provisioning, regulated human review, or target-agent installation.
+- For Codex plugin ports, distinguish three states clearly: staged files, marketplace exposed through `codex plugin marketplace add`, and plugin installed/enabled. Do not use ad hoc `~/.codex/config.toml` edits as an install substitute; when the user explicitly asks for local Codex Desktop installation, use `scripts/install_codex_local_bundle.py` so marketplace registration, cache copies, and config enablement stay consistent.
